@@ -1,0 +1,13 @@
+{
+  "name": "nexa-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend NEXA V1 (Node 22.5+, zéro dépendance, SQLite intégré)",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --no-warnings src/index.js",
+    "dev": "NEXA_DEMO=1 node --no-warnings src/index.js",
+    "test": "node --no-warnings test/test.js"
+  }
+}

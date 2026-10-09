@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: nexa
+    runtime: node
+    plan: free
+    buildCommand: echo "rien à installer"
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: NEXA_SECRET
+        generateValue: true
+      # Réglage de TEST : seuil de match abaissé à 60 % (80 % pour un vrai lancement : supprimer ces 2 lignes).
+      # Les hommes matchent uniquement avec les femmes (et inversement) selon "Je suis / Je cherche".
+      - key: NEXA_THRESHOLD
+        value: "60"
