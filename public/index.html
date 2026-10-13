@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NEXA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Figtree:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f1f6fd;--surface:#ffffff;--ink:#0e1b33;--mute:#5b6b88;--line:#d5e1f3;--pri:#1c5fd6;--pri-ink:#ffffff;--soft:#e2edfc;--hot:#e55a12;--warn:#a85200;
+ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1424;--surface:#13213a;--ink:#eaf1ff;--mute:#9bb0d1;--line:#27395c;--pri:#6ea4ff;--pri-ink:#0b1424;--soft:#1b2f54;--hot:#ff9a5c;--warn:#ffb25e}}
+:root[data-theme="dark"]{--bg:#0b1424;--surface:#13213a;--ink:#eaf1ff;--mute:#9bb0d1;--line:#27395c;--pri:#6ea4ff;--pri-ink:#0b1424;--soft:#1b2f54;--hot:#ff9a5c;--warn:#ffb25e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Figtree,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent}
+h1,h2,h3{font-family:Fraunces,Georgia,"Times New Roman",serif;line-height:1.15;margin:0}
+#app{max-width:560px;margin:0 auto;padding:20px 18px 110px}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--pri);outline-offset:2px}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:15px;background:var(--pri);color:var(--pri-ink);font-weight:700;text-align:center}
+.btn.alt{background:var(--soft);color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:default}
+.link{background:none;border:0;color:var(--mute);padding:10px;width:100%}
+.mute{color:var(--mute)}
+.brand{font-family:Fraunces,Georgia,serif;font-weight:800;font-size:76px;letter-spacing:.08em;color:var(--pri);margin:0}
+.hero{min-height:78vh;display:flex;flex-direction:column;justify-content:center;gap:16px}
+.hero h2{font-size:30px}
+label{display:block;font-weight:700;margin:14px 0 6px}
+input,select{width:100%;padding:13px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font:inherit}
+.bar{height:6px;background:var(--line);border-radius:6px;overflow:hidden;margin-bottom:18px}
+.bar i{display:block;height:100%;background:var(--pri)}
+.sec{color:var(--pri);font-weight:700;margin:0 0 6px}
+.q{font-size:23px;margin-bottom:16px}
+.opt{display:block;width:100%;text-align:left;padding:14px;margin-bottom:10px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink)}
+.opt[aria-pressed="true"]{border-color:var(--pri);background:var(--soft);font-weight:700}
+.row{display:flex;gap:10px}
+.card{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--surface);border:1.5px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px;color:var(--ink)}
+.rank{font-size:28px;width:34px;text-align:center}
+.grow{flex:1;min-width:0}
+.score{font-family:Fraunces,Georgia,serif;font-weight:800;font-size:30px;color:var(--hot)}
+.big{font-family:Fraunces,Georgia,serif;font-weight:800;font-size:68px;color:var(--hot);line-height:1;text-align:center}
+.av{width:84px;height:84px;border-radius:50%;background:var(--soft);display:flex;align-items:center;justify-content:center;font-family:Fraunces,Georgia,serif;font-size:38px;margin:0 auto 10px}
+.dim{margin-bottom:12px;font-size:14px}.dim .bar{height:8px;margin:4px 0 0}.dim .bar i{background:var(--hot)}
+.warn{color:var(--warn)}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;max-width:190px;border:0;background:none;padding:12px 4px;color:var(--mute);font-weight:700}
+nav button[aria-current="page"]{color:var(--pri)}
+.chat{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+.b{max-width:78%;padding:10px 14px;border-radius:18px;background:var(--soft)}
+.b.me{align-self:flex-end;background:var(--pri);color:var(--pri-ink)}
+.send{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom,0px));background:var(--bg);padding:8px 12px;display:flex;gap:8px;max-width:560px;margin:0 auto}
+.send input{flex:1}.send button{width:auto;padding:0 18px}
+.wall{background:var(--soft);border-radius:16px;padding:16px;text-align:center;margin-top:14px}
+.modal{position:fixed;inset:0;background:rgba(10,6,20,.55);display:flex;align-items:flex-end;justify-content:center;z-index:5}
+.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:24px 24px 0 0;padding:22px 20px calc(22px + env(safe-area-inset-bottom,0px))}
+.note{font-size:13px;color:var(--mute);text-align:center;margin-top:10px}
+@media (prefers-reduced-motion:no-preference){.spin{animation:s 1s linear infinite}}
+.spin{width:44px;height:44px;border:5px solid var(--line);border-top-color:var(--pri);border-radius:50%;margin:0 auto 18px}
+@keyframes s{to{transform:rotate(360deg)}}
+.cards2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0}.fcard{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:16px;padding:16px 8px;text-align:center}.fcard[aria-pressed="true"]{border-color:var(--pri);background:var(--soft);font-weight:700}.swatches{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}.sw{width:58px;height:58px;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1.5px var(--line)}.sw[aria-pressed="true"]{border-color:var(--ink);transform:scale(1.12)}.opt:disabled,.fcard:disabled,.sw:disabled{cursor:default}
+.av{background-size:cover;background-position:center;overflow:hidden}.av.has{color:transparent}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}.ph{position:relative;aspect-ratio:3/4;border-radius:14px;background:var(--soft) center/cover no-repeat;overflow:hidden}.ph button{position:absolute;top:6px;right:6px;border:0;border-radius:50%;width:30px;height:30px;background:rgba(0,0,0,.65);color:#fff;font-size:18px;line-height:1}.add{display:flex;align-items:center;justify-content:center;aspect-ratio:3/4;border:2px dashed var(--line);border-radius:14px;color:var(--mute);font-size:32px;cursor:pointer}
+</style>
+</head><body><div id="app"></div><script>
+const DIM_LABELS={couple:'❤️ Vision du couple',family:'👨‍👩‍👧 Famille & projet de vie',personality:'🧠 Personnalité',comm:'💬 Communication & conflits',lifestyle:'🌍 Mode de vie',ambition:'🚀 Ambitions & projets',interests:"🎯 Centres d'intérêt"};
+const DIM_ORDER=['couple','family','personality','comm','lifestyle','ambition','interests'];
+const AXIS_LABELS={CLOSE:'Besoin de proximité',INDEP:"Besoin d'indépendance",COMM:'Ouverture à la communication',CONFLICT:'Gestion des conflits',SOCIAL:'Sociabilité',PLAN:'Organisation',FAMILY:'Orientation famille',AMBITION:'Ambition',ACTIVITY:'Rythme de vie',FLEX:'Flexibilité'};
+const CITIES=['Tunis','Ariana','Ben Arous','Manouba','Nabeul','Bizerte','Sousse','Monastir','Sfax','Gabès','Kairouan','Autre'];
+const FREE_MSG=50;
+const REPORT_CATS=[['faux_profil',"Faux profil ou photos d'une autre personne"],['harcelement','Harcèlement ou insultes'],['contenu_inapproprie','Contenu inapproprié'],['arnaque',"Arnaque ou demande d'argent"],['mineur','Personne mineure'],['autre','Autre']];
+const sectionTitle=id=>id<=8?'❤️ Vision du couple':id<=16?'🧠 Personnalité':id<=22?'🗣️ Communication & conflits':id<=29?'🏠 Mode de vie':id<=36?'👨‍👩‍👧 Famille, mariage & enfants':id<=41?'🎯 Projets & ambitions':id<=46?"🎵 Centres d'intérêt":'🚫 Deal-breakers & valeurs';
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const strength=v=>v>=90?'très forte':v>=80?'forte':v>=70?'bonne':'moyenne';
+const $app=document.getElementById('app');
+const $=id=>document.getElementById(id);
+
+let S={fi:0,interludes:[],fun:[],report:null,photoAsked:false,needPhoto:false,devCode:'',info:'',th:0,token:null,screen:'boot',mode:'register',tab:'matches',user:null,traits:{},questions:[],answers:{},qi:0,matches:[],threshold:80,incoming:[],convs:[],notifs:[],detail:null,det:null,chat:null,sheet:false,error:'',busy:false};
+let CH={id:null,person:null,msgs:[],last:0,total:0,canSend:true,shown:true,timer:null};
+
+function save(){try{localStorage.setItem('nexa-live',JSON.stringify({token:S.token,answers:S.answers,qi:S.qi}))}catch(e){}}
+function restore(){try{const d=JSON.parse(localStorage.getItem('nexa-live')||'null');if(d){S.token=d.token;S.answers=d.answers||{};S.qi=d.qi||0}}catch(e){}}
+
+async function api(method,path,body){
+  const r=await fetch(path,{method,headers:{'Content-Type':'application/json',...(S.token?{Authorization:'Bearer '+S.token}:{})},body:body?JSON.stringify(body):undefined});
+  let d={};try{d=await r.json()}catch(e){}
+  if(!r.ok){const e=new Error(d.error||('Erreur '+r.status));e.status=r.status;e.code=d.code;throw e}
+  return d;
+}
+const fail=e=>{if(e.code==='suspended'){if(S.user)S.user.suspended=true;S.screen='suspended';S.busy=false;render();return}
+  if(e.code==='phone_unverified'){S.screen='verify';S.busy=false;sendCode().then(render);return}
+  S.error=e.message==='Failed to fetch'?'Connexion impossible au serveur.':e.message;S.busy=false;render()};
+
+async function loadAll(){
+  const [m,i,c,n]=await Promise.all([api('GET','/matches').catch(e=>{if(e.code==='photo_required')return{matches:[],threshold:S.threshold,needPhoto:true};throw e}),api('GET','/connections/incoming'),api('GET','/conversations'),api('GET','/notifications')]);
+  S.matches=m.matches;S.threshold=m.threshold;S.needPhoto=!!m.needPhoto;S.incoming=i.requests;S.convs=c.conversations;S.notifs=n.notifications;
+}
+async function sendCode(){
+  try{const r=await api('POST','/auth/send-code');S.devCode=r.devCode||'';S.info=r.sent?('Code envoyé au '+S.user.phone+'.'):'';S.error=''}
+  catch(e){S.error=e.message==='Failed to fetch'?'Connexion impossible au serveur.':e.message}
+}
+async function enter(){
+  const p=await api('GET','/profile');S.user=p.user;S.traits=p.traits;S.fun=p.fun||[];
+  if(S.user.suspended){S.screen='suspended';return}
+  if(!S.user.verified){S.screen='verify';await sendCode();return}
+  if(!S.user.completed&&!(S.user.photos||[]).length&&!S.photoAsked){S.screen='photo';return}
+  if(!S.questions.length){const qq=await api('GET','/questions');S.questions=qq.questions;S.interludes=qq.interludes}
+  if(S.user.completed){await loadAll();S.screen='app'}else S.screen=(S.qi===0&&!Object.keys(S.answers).length)?'intro':'quiz';
+}
+async function boot(){
+  restore();
+  if(S.token){try{await enter();render();return}catch(e){S.token=null;save()}}
+  S.screen='welcome';render();
+}
+
+
+/* ---------- photos ---------- */
+const PH={};
+async function loadPhoto(id){if(PH[id])return PH[id];const r=await fetch('/photos/'+id,{headers:{Authorization:'Bearer '+S.token}});if(!r.ok)throw new Error('photo');PH[id]=URL.createObjectURL(await r.blob());return PH[id]}
+function hydrate(){if(!document.querySelectorAll)return;document.querySelectorAll('[data-pid]').forEach(async el=>{try{const u=await loadPhoto(el.dataset.pid);el.style.backgroundImage=`url(${u})`;el.classList.add('has')}catch(e){}})}
+const av=(u,size,m='0 auto 10px')=>`<div class="av" ${u.photos&&u.photos[0]?`data-pid="${u.photos[0]}"`:''} style="width:${size}px;height:${size}px;font-size:${Math.round(size*.45)}px;margin:${m};flex:none">${esc((u.name||'?')[0])}</div>`;
+async function fileToJpeg(file){
+  const url=URL.createObjectURL(file);
+  const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>ko(new Error('Image illisible'));i.src=url});
+  const k=Math.min(1,900/Math.max(img.width,img.height)),cv=document.createElement('canvas');
+  cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+  URL.revokeObjectURL(url);return cv.toDataURL('image/jpeg',0.82);
+}
+async function uploadPhoto(dataUrl){const r=await api('POST','/photos',{image:dataUrl});S.user.photos=r.photos}
+function photosEditor(){const ph=S.user.photos||[];return `<div class="grid">${ph.map(id=>`<div class="ph" data-pid="${id}"><button data-a="del-photo" data-id="${id}" aria-label="Supprimer la photo">×</button></div>`).join('')}${ph.length<3?'<label class="add" for="f-photo" aria-label="Ajouter une photo">＋</label>':''}</div><input id="f-photo" type="file" accept="image/jpeg,image/png,image/webp" hidden>${err()}`}
+function viewPhoto(){return `<h2>Ajoute ta photo</h2><p class="mute">Une vraie photo de toi (visage visible) rassure les autres et augmente tes chances. Tu peux en mettre jusqu'à 3. Seules les personnes compatibles avec toi pourront la voir.</p>${photosEditor()}<div style="height:10px"></div><button class="btn" data-a="photo-next">${(S.user.photos||[]).length?'Continuer':'Plus tard'}</button>`}
+
+/* ---------- vues ---------- */
+const err=()=>S.error?`<p class="warn" role="alert">${esc(S.error)}</p>`:'';
+function viewWelcome(){return `<section class="hero"><h1 class="brand">NEXA</h1><h2>Ton partenaire qui te convient le mieux</h2><p class="mute">NEXA compare tes réponses à celles des autres pour te proposer les personnes les plus compatibles avec toi.</p><button class="btn" data-a="go-register">Commencer</button><button class="link" data-a="go-login">J'ai déjà un compte</button><p class="note">Version test : tes réponses servent uniquement à calculer la compatibilité.</p></section>`}
+function viewLogin(){return `<h2>Connexion</h2><label for="f-phone">Numéro de téléphone</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel"><label for="f-pass">Mot de passe</label><input id="f-pass" type="password" autocomplete="current-password">${err()}<div style="height:18px"></div><button class="btn" data-a="login" ${S.busy?'disabled':''}>Se connecter</button><button class="link" data-a="go-welcome">Retour</button>`}
+function viewRegister(){return `<h2>Crée ton profil</h2>
+<label for="f-phone">Numéro de téléphone (ex. 20123456 ou +21620123456)</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel">
+<label for="f-pass">Mot de passe (8 caractères, avec des lettres)</label><input id="f-pass" type="password" autocomplete="new-password">
+<label for="f-name">Prénom affiché</label><input id="f-name" maxlength="40" autocomplete="given-name">
+<label for="f-age">Âge (18 ans minimum)</label><input id="f-age" type="number" inputmode="numeric" min="18" max="99" value="25">
+<label for="f-city">Ville</label><select id="f-city">${CITIES.map(c=>`<option>${c}</option>`).join('')}</select>
+<label for="f-gender">Je suis</label><select id="f-gender"><option>Femme</option><option>Homme</option></select>
+<label for="f-look">Je cherche</label><select id="f-look"><option>Un homme</option><option>Une femme</option></select>
+${err()}<div style="height:18px"></div><button class="btn" data-a="register" ${S.busy?'disabled':''}>Continuer vers le test</button><button class="link" data-a="go-welcome">Retour</button>`}
+const QS=()=>S.questions,INTERS=()=>S.interludes||[];
+const THEMES=[
+{from:1,to:8,emoji:'❤️',title:'Vision du couple',desc:'Ce que tu cherches dans une relation'},
+{from:9,to:16,emoji:'🧠',title:'Personnalité',desc:'Ta façon d’être au quotidien'},
+{from:17,to:22,emoji:'🗣️',title:'Communication & conflits',desc:'Comment tu parles et gères les désaccords'},
+{from:23,to:29,emoji:'🏠',title:'Mode de vie',desc:'Ton rythme et tes habitudes'},
+{from:30,to:36,emoji:'👨‍👩‍👧',title:'Famille, mariage & enfants',desc:'Ton projet de vie'},
+{from:37,to:41,emoji:'🎯',title:'Projets & ambitions',desc:'Où tu veux aller'},
+{from:42,to:46,emoji:'🎵',title:"Centres d'intérêt",desc:'Ce que tu aimes partager'},
+{from:47,to:50,emoji:'🧭',title:'Valeurs & limites',desc:'Ce qui compte vraiment pour toi'}];
+const themeOf=id=>THEMES.findIndex(t=>id>=t.from&&id<=t.to);
+const themeQs=ti=>QS().filter(q=>themeOf(q.id)===ti);
+const HINT_ID=113;
+function viewIntro(){const n=QS().length;return `<section class="hero"><p class="sec">Ton test NEXA</p><h2>${THEMES.length} thèmes · ${n} questions</h2><p class="mute">Environ 8 minutes, avec des petites pauses fun entre les thèmes. Réponds spontanément : il n'y a pas de bonne ou de mauvaise réponse. À la fin de chaque thème, on te le dit et on passe au suivant.</p><div>${THEMES.map((t,i)=>`<p style="margin:6px 0">${t.emoji} <b>${i+1}.</b> ${esc(t.title)} <span class="mute">· ${themeQs(i).length} questions</span></p>`).join('')}</div><button class="btn" data-a="test-start">C'est parti</button></section>`}
+function viewTheme(){const i=S.th,t=THEMES[i];return `<section class="hero" style="text-align:center">${i>0?`<p class="sec" style="font-size:18px">✅ Thème ${i} terminé !</p>`:''}<div class="av">${t.emoji}</div><p class="sec">Thème ${i+1}/${THEMES.length}</p><h2>${esc(t.title)}</h2><p class="mute">${esc(t.desc)} · ${themeQs(i).length} questions</p><button class="btn" data-a="theme-go">${i>0?'Passer au thème suivant':'Commencer'}</button></section>`}
+function viewQuiz(){const qs=QS(),q=qs[S.qi],ti=themeOf(q.id),t=THEMES[ti],tq=themeQs(ti),pos=tq.indexOf(q)+1,tot=tq.length,sel=S.answers[q.id]||[],opt=q.key==='dealbreakers',multi=q.maxChoices>0,endT=pos===tot,lastT=ti===THEMES.length-1;
+return `<p class="sec">${t.emoji} Thème ${ti+1}/${THEMES.length} · ${esc(t.title)}</p><div class="bar" role="progressbar" aria-valuemin="1" aria-valuemax="${tot}" aria-valuenow="${pos}"><i style="width:${pos/tot*100}%"></i></div><p class="mute" style="margin:0 0 12px">Question ${pos}/${tot}</p><h2 class="q">${esc(q.text)}</h2>${multi&&!opt?`<p class="mute">Choisis jusqu'à ${q.maxChoices} réponses</p>`:''}
+${q.options.map((o,i)=>`<button class="opt" data-a="opt" data-i="${i}" aria-pressed="${sel.includes(i)}">${esc(o)}</button>`).join('')}${typeof err==='function'?err():''}
+<div class="row" style="margin-top:14px">${S.qi>0?'<button class="btn alt" data-a="prev" style="width:35%">Retour</button>':''}<button class="btn" data-a="next" ${(sel.length||opt)&&!S.busy?'':'disabled'}>${endT?(lastT?'Terminer le test':'Terminer le thème'):'Continuer'}</button></div>`}
+function funFb(it,i){if(it.kind==='riddle'){const hinted=(S.answers[HINT_ID]||[])[0]===1,r=i===it.answer?(hinted?it.results.hinted:it.results.solved):it.results.missed;return {tag:r.tag,text:r.feedback}}const o=it.options[i];return {tag:o.tag,text:o.feedback}}
+function viewFun(){const it=INTERS().find(x=>x.after===S.fi);if(!it)return '';const i=(S.answers[it.id]||[])[0],done=i!==undefined,dis=done?'disabled':'';let body='';
+ if(it.kind==='riddle'){const hinted=(S.answers[HINT_ID]||[])[0]===1;body=(hinted?`<p class="note" style="text-align:left">💡 Indice : ${esc(it.hint)}</p>`:(done?'':'<button class="link" data-a="hint" style="text-align:left;padding-left:0">💡 Un indice ?</button>'))+it.options.map((o,k)=>`<button class="opt" data-a="fun-pick" data-i="${k}" aria-pressed="${i===k}" ${dis}>${esc(o.label)}</button>`).join('')}
+ else if(it.kind==='colors'){body=`<div class="swatches">${it.options.map((o,k)=>`<button class="sw" data-a="fun-pick" data-i="${k}" aria-pressed="${i===k}" aria-label="${esc(o.label)}" style="background:${o.color}" ${dis}></button>`).join('')}</div>${done?`<p><b>${esc(it.options[i].label)}</b></p>`:'<p class="mute">Touche la couleur qui te parle</p>'}`}
+ else{body=`<div class="cards2">${it.options.map((o,k)=>`<button class="fcard" data-a="fun-pick" data-i="${k}" aria-pressed="${i===k}" ${dis}><span style="font-size:34px">${o.emoji}</span><br>${esc(o.label)}</button>`).join('')}</div>`}
+ const f=done?funFb(it,i):null;
+ return `<section><p class="sec">${it.emoji} Pause fun · ${esc(it.title)}</p><h2 class="q">${esc(it.prompt)}</h2>${body}${f?`<div class="wall" style="text-align:left"><b>${esc(f.tag)}</b><p style="margin:6px 0 0">${esc(f.text)}</p><p class="mute" style="font-size:12px;margin:8px 0 0">Juste pour le plaisir : ce n'est pas un test psychologique.</p></div>`:''}<div style="height:16px"></div><button class="btn" data-a="fun-next">${done?'Continuer':'Passer'}</button></section>`}
+function afterInterlude(){const ti=S.fi;if(ti<THEMES.length-1){S.th=ti+1;S.qi++;S.screen='theme';return true}return false}
+function funActions(a,el){
+  if(a==='fun-pick'){const it=INTERS().find(x=>x.after===S.fi);S.answers[it.id]=[+el.dataset.i];return 'handled'}
+  if(a==='hint'){S.answers[HINT_ID]=[1];return 'handled'}
+  if(a==='fun-next'){return afterInterlude()?'handled':'finish'}
+  if(a==='next'){const qs=QS(),q=qs[S.qi],ti=themeOf(q.id),tq=themeQs(ti);
+    if(q!==tq[tq.length-1]){S.qi++;return 'handled'}
+    if(INTERS().some(x=>x.after===ti)){S.fi=ti;S.screen='fun';return 'handled'}
+    if(ti<THEMES.length-1){S.th=ti+1;S.qi++;S.screen='theme';return 'handled'}
+    return 'finish'}
+  return null}
+const funShared=m=>(m.shared&&m.shared.length)?`<h3 style="margin:18px 0 8px">Ce que vous avez en commun</h3><p>${m.shared.map(x=>`${x.emoji} ${esc(x.label)}`).join(' · ')}</p>`:'';
+function viewVerify(){return `<h2>Vérifie ton numéro</h2><p class="mute">Entre le code à 6 chiffres envoyé par SMS au <b>${esc(S.user?S.user.phone:'')}</b>. Il est valable 10 minutes.</p>
+${S.info?`<p class="note" style="text-align:left">${esc(S.info)}</p>`:''}
+${S.devCode?`<div class="wall" style="text-align:left"><b>Mode test</b> : ton code est <b style="font-size:22px;letter-spacing:.15em">${esc(S.devCode)}</b><br><span class="mute" style="font-size:13px">Cet affichage n'existe qu'en test, sans service SMS.</span></div>`:''}
+<label for="f-code">Code de vérification</label><input id="f-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456">${err()}
+<div style="height:18px"></div><button class="btn" data-a="verify" ${S.busy?'disabled':''}>Vérifier</button><button class="link" data-a="resend">Renvoyer le code</button><button class="link" data-a="logout">Changer de compte</button>`}
+function viewSuspended(){return `<section class="hero"><h2>Compte suspendu</h2><p class="mute">Ton compte est suspendu suite à des signalements ou à une vérification de notre équipe. Si tu penses que c'est une erreur, explique-nous la situation : nous examinerons ta demande.</p>${S.info?`<p class="note" style="text-align:left">${esc(S.info)}</p>`:`<label for="f-appeal">Ton message</label><textarea id="f-appeal" rows="4" maxlength="1000" style="width:100%;padding:13px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font:inherit"></textarea>${err()}<button class="btn" data-a="send-appeal">Envoyer ma demande</button>`}<button class="link" data-a="logout">Se déconnecter</button></section>`}
+function viewReport(){return `<div class="modal" data-a="close-report"><div class="sheet" role="dialog" aria-modal="true" aria-label="Signaler"><h2>Signaler ce profil</h2><p class="mute">Pourquoi signales-tu cette personne ? Ton signalement est confidentiel.</p><div style="margin-top:12px">${REPORT_CATS.map(([id,l])=>`<button class="opt" data-a="send-report" data-c="${id}">${esc(l)}</button>`).join('')}</div><button class="link" data-a="close-report">Annuler</button></div></div>`}
+function viewAnalysis(){return `<section class="hero" style="text-align:center"><div class="spin" aria-hidden="true"></div><h2>NEXA analyse ton profil…</h2><p class="mute">NEXA construit ton profil de compatibilité.</p>${err()}</section>`}
+function tabs(){const t=[['matches','Connexions'],['messages','Messages'],['notifs','Notifs'],['me','Profil']];const cur=S.chat!=null?'messages':S.detail!=null?'matches':S.tab;
+return `<nav aria-label="Navigation">${t.map(([k,l])=>`<button data-a="tab" data-t="${k}" ${cur===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav>`}
+function viewMatches(){const medals=['🥇','🥈','🥉','🔒','🔒'];
+return `<h2>Tes meilleures compatibilités</h2><p class="mute">Seuil minimum : ${S.threshold} %</p>${err()}
+${S.incoming.length?`<h3 style="margin:16px 0 8px">Demandes reçues</h3>${S.incoming.map(r=>`<div class="card" style="display:block"><div style="display:flex;gap:12px;align-items:center">${av(r.user,46,'0')}<span><b>${esc(r.user.name)}, ${r.user.age}</b> · ${esc(r.user.city)}<br><span class="mute">Compatibilité : ${r.score} %</span></span></div><div class="row" style="margin-top:10px"><button class="btn" data-a="accept" data-id="${r.id}">Accepter</button><button class="btn alt" data-a="reject" data-id="${r.id}">Refuser</button></div></div>`).join('')}`:''}
+<div style="height:14px"></div>
+${S.needPhoto?`<div class="wall"><b>Ajoute une photo pour voir tes compatibilités</b><p>Les profils sans photo ne sont pas affichés, pour garder NEXA fiable.</p><button class="btn" data-a="tab" data-t="me">Ajouter ma photo</button></div>`:S.matches.length?S.matches.map((m,i)=>`<button class="card" data-a="open" data-i="${i}"><span class="rank">${m.locked?'🔒':(medals[i]||'⭐')}</span>${m.locked?'':av(m.user,46,'0')}<span class="grow"><b>${m.locked?'Profil masqué':esc(m.user.name)+', '+m.user.age}</b><br><span class="mute">${m.locked?'Disponible avec NEXA Premium':esc(m.user.city)}</span></span><span class="score">${m.score} %</span></button>`).join(''):`<div class="wall">NEXA n'a pas encore trouvé la bonne personne. Il continue de chercher et te préviendra dès qu'un profil atteindra ${S.threshold} % de compatibilité. Invite tes amis à s'inscrire !</div>`}
+<button class="link" data-a="refresh">Actualiser</button>`}
+function viewDetail(){const m=S.det;if(!m)return '<div class="spin" aria-hidden="true"></div>';const p=m.user,c=m.connection;let cta;
+if(!c)cta=`<button class="btn" data-a="req" data-id="${p.id}" ${S.busy?'disabled':''}>Faire connaissance</button>`;
+else if(c.status==='accepted')cta=`<button class="btn" data-a="chat" data-id="${c.id}" data-uid="${p.id}">🎉 Accepté — ouvrir la conversation</button>`;
+else if(c.status==='pending'&&c.mine)cta=`<p class="mute" style="text-align:center">Demande envoyée… en attente de réponse</p><button class="btn alt" data-a="reload-detail">Actualiser</button>`;
+else if(c.status==='pending')cta=`<div class="row"><button class="btn" data-a="accept" data-id="${c.id}">Accepter</button><button class="btn alt" data-a="reject" data-id="${c.id}">Refuser</button></div>`;
+else cta=`<p class="mute" style="text-align:center">Cette demande n'a pas abouti.</p>`;
+return `<button class="link" data-a="back" style="text-align:left;padding-left:0">← Retour</button>${av(p,110)}${(p.photos||[]).length>1?`<div class="grid" style="max-width:260px;margin:0 auto 10px">${p.photos.slice(1).map(id=>`<div class="ph" data-pid="${id}"></div>`).join('')}</div>`:''}<h2 style="text-align:center">${esc(p.name)}, ${p.age}</h2><p class="mute" style="text-align:center;margin:4px 0 14px">${esc(p.city)}${p.bio?' · '+esc(p.bio):''}</p>
+<div class="big">${m.score} %</div><p class="mute" style="text-align:center;margin:4px 0 18px">de compatibilité</p>
+${DIM_ORDER.filter(d=>m.dims[d]!=null).map(d=>`<div class="dim">${DIM_LABELS[d]} : ${strength(m.dims[d])} (${m.dims[d]} %)<div class="bar"><i style="width:${m.dims[d]}%"></i></div></div>`).join('')}
+<h3 style="margin:18px 0 8px">Pourquoi NEXA vous a matchés ?</h3>${m.reasons.map(r=>`<p style="margin:4px 0">• ${esc(r)}</p>`).join('')}${m.warnings.map(w=>`<p class="warn">⚠️ ${esc(w)}</p>`).join('')}${funShared(m)}
+${err()}<div style="height:20px"></div>${cta}<div class="row" style="margin-top:14px"><button class="link" data-a="report" data-id="${p.id}">Signaler</button><button class="link" data-a="block" data-id="${p.id}">Bloquer</button></div>`}
+function viewMessages(){return `<h2>Messages</h2><div style="height:12px"></div>${S.convs.length?S.convs.map(c=>`<button class="card" data-a="chat" data-id="${c.id}" data-uid="${c.user.id}">${av(c.user,46,'0')}<span class="grow"><b>${esc(c.user.name)} · ${c.score} %</b><br><span class="mute">${esc(c.lastMessage||'Dites-vous bonjour !')}</span></span></button>`).join(''):'<p class="mute">Aucune conversation pour le moment.</p>'}`}
+function viewNotifs(){return `<h2>Notifications</h2><div style="height:12px"></div>${S.notifs.length?S.notifs.map(n=>`<p class="card" style="display:block">✨ ${esc(n.text)}</p>`).join(''):'<p class="mute">Rien de nouveau.</p>'}`}
+function viewMe(){const u=S.user,t=S.traits||{};return `<h2>${esc(u.name)}, ${u.age}</h2><p class="mute">${esc(u.city)} · ${u.premium?'NEXA Premium actif':'Compte gratuit'}</p>
+<h3 style="margin:18px 0 4px">Mes photos</h3>${photosEditor()}<h3 style="margin:18px 0 4px">Ton profil fun</h3>${(S.fun||[]).map(f=>`<p style="margin:4px 0">${f.emoji} <b>${esc(f.label)}</b> <span class="mute">· ${esc(f.tag)}</span></p>`).join('')||'<p class="mute">Réponds aux pauses fun pour le voir.</p>'}<h3 style="margin:18px 0 4px">Ton profil NEXA</h3><p class="mute" style="font-size:14px">Préférences estimées à partir de tes réponses. Ce n'est pas un diagnostic psychologique.</p><div style="height:10px"></div>
+${Object.keys(AXIS_LABELS).filter(a=>t[a]!=null).map(a=>`<div class="dim">${AXIS_LABELS[a]} : ${t[a]}/100<div class="bar"><i style="width:${t[a]}%"></i></div></div>`).join('')}
+${u.premium?'':'<button class="btn alt" data-a="premium">Découvrir NEXA Premium</button>'}<div style="height:8px"></div><button class="link" data-a="export">Télécharger mes données</button><button class="link" data-a="logout">Se déconnecter</button><button class="link" data-a="delete" style="color:var(--hot)">Supprimer mon compte</button>`}
+function viewChat(){CH.shown=CH.canSend;return `<button class="link" data-a="back" style="text-align:left;padding-left:0">← ${esc(CH.person?CH.person.name:'')}</button><p class="note" id="cnt"></p><div class="chat" id="msgs" aria-live="polite"></div>
+${CH.canSend?`<form class="send" data-a="send"><input id="msg" maxlength="1000" placeholder="Écris un message…" aria-label="Message" autocomplete="off"><button class="btn" type="submit">Envoyer</button></form><div style="height:70px"></div>`:`<div class="wall"><b>Vous avez beaucoup de choses à vous dire ❤️</b><p>Passez en Premium pour continuer votre conversation.</p><button class="btn" data-a="premium">Passer à NEXA Premium</button></div>`}`}
+function viewSheet(){return `<div class="modal" data-a="close-sheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="NEXA Premium"><h2>NEXA Premium</h2><div style="margin:14px 0">${['Voir toutes tes personnes compatibles','Voir tes 5 meilleurs scores','Messages illimités','Voir en détail pourquoi vous êtes compatibles','Nouvelles recommandations chaque semaine'].map(x=>`<p style="margin:6px 0">✅ ${x}</p>`).join('')}</div><button class="btn" data-a="go-premium">Activer Premium (test, sans paiement)</button><button class="link" data-a="close-sheet">Plus tard</button></div></div>`}
+
+function render(){
+  let h='';const sc=S.screen;
+  if(sc==='boot')h='<div class="spin" style="margin-top:40vh" aria-label="Chargement"></div>';
+  else if(sc==='welcome')h=S.mode==='login'?viewLogin():S.mode==='register-form'?viewRegister():viewWelcome();
+  else if(sc==='suspended')h=viewSuspended();else if(sc==='verify')h=viewVerify();else if(sc==='photo')h=viewPhoto();else if(sc==='quiz')h=viewQuiz();else if(sc==='intro')h=viewIntro();else if(sc==='fun')h=viewFun();else if(sc==='theme')h=viewTheme();else if(sc==='analysis')h=viewAnalysis();
+  else{h=S.chat!=null?viewChat():S.detail!=null?viewDetail():S.tab==='matches'?viewMatches():S.tab==='messages'?viewMessages():S.tab==='notifs'?viewNotifs():viewMe();h+=tabs()}
+  if(S.sheet)h+=viewSheet();
+  if(S.report!=null)h+=viewReport();
+  $app.innerHTML=h;if(S.chat!=null)paintChat();hydrate();
+}
+
+/* ---------- chat ---------- */
+function paintChat(){const box=$('msgs');if(!box)return;
+  if(CH.canSend!==CH.shown){render();return}
+  const stick=window.innerHeight+window.scrollY>=document.body.scrollHeight-80;
+  box.innerHTML=CH.msgs.map(m=>`<div class="b ${m.mine?'me':''}">${esc(m.text)}</div>`).join('');
+  const c=$('cnt');if(c)c.textContent=(S.user&&S.user.premium)?'':`${CH.total}/${FREE_MSG} messages gratuits`;
+  if(stick)window.scrollTo(0,document.body.scrollHeight);
+}
+async function pollChat(){if(CH.id==null)return;try{const r=await api('GET',`/conversations/${CH.id}/messages?after=${CH.last}`);
+  if(r.messages.length){CH.msgs.push(...r.messages);CH.last=r.messages[r.messages.length-1].id}CH.total=r.total;CH.canSend=r.canSend;paintChat()}catch(e){}}
+function openChat(id,person){CH={id,person,msgs:[],last:0,total:0,canSend:true,shown:true,timer:null};S.chat=id;S.error='';render();pollChat();CH.timer=setInterval(pollChat,3000)}
+function closeChat(){clearInterval(CH.timer);CH.id=null;S.chat=null}
+
+/* ---------- actions ---------- */
+async function go(fn){try{S.error='';await fn()}catch(e){fail(e);return}S.busy=false;render()}
+$app.addEventListener('change',async e=>{
+  if(!e.target||e.target.id!=='f-photo')return;const f=e.target.files&&e.target.files[0];if(!f)return;
+  if(!/^image\//.test(f.type)){S.error='Choisis une image (JPEG, PNG ou WebP).';return render()}
+  S.error='';try{await uploadPhoto(await fileToJpeg(f))}catch(x){S.error=x.status===413?'Photo trop lourde.':x.message}
+  render();
+});
+$app.addEventListener('submit',async e=>{e.preventDefault();if(!e.target.closest('[data-a="send"]'))return;
+  const inp=$('msg'),t=inp.value.trim();if(!t)return;
+  try{await api('POST',`/conversations/${CH.id}/messages`,{text:t});inp.value='';await pollChat()}catch(x){if(x.code==='premium_required'){CH.canSend=false;paintChat()}else{S.error=x.message;alert(x.message)}}});
+
+$app.addEventListener('click',async e=>{
+  const el=e.target.closest('[data-a]');if(!el||el.tagName==='FORM')return;const a=el.dataset.a,id=+el.dataset.id;
+  if(a==='close-report'){if(el.classList.contains('modal')&&e.target.closest('.sheet'))return;S.report=null;return render()}
+  if(a==='close-sheet'){if(el.classList.contains('modal')&&e.target.closest('.sheet'))return;S.sheet=false;return render()}
+  if(a==='go-register'){S.mode='register-form';S.error=''}
+  else if(a==='go-login'){S.mode='login';S.error=''}
+  else if(a==='go-welcome'){S.mode='welcome';S.error=''}
+  else if(a==='login'){S.busy=true;return go(async()=>{const r=await api('POST','/auth/login',{phone:$('f-phone').value.trim(),password:$('f-pass').value});S.token=r.token;save();await enter()})}
+  else if(a==='register'){const age=parseInt($('f-age').value,10);S.busy=true;
+    return go(async()=>{const r=await api('POST','/auth/register',{phone:$('f-phone').value.trim(),password:$('f-pass').value,name:$('f-name').value.trim(),age,city:$('f-city').value,gender:$('f-gender').value,lookingFor:$('f-look').value});S.token=r.token;S.answers={};S.qi=0;S.th=0;save();await enter()})}
+  else if(a==='photo-next'){S.photoAsked=true;S.busy=true;return go(enter)}
+  else if(a==='del-photo'){return go(async()=>{const r=await api('DELETE','/photos/'+id);S.user.photos=r.photos})}
+  else if(a==='verify'){S.busy=true;return go(async()=>{await api('POST','/auth/verify-code',{code:$('f-code').value.trim()});S.devCode='';S.info='';await enter()})}
+  else if(a==='resend'){S.busy=true;return go(sendCode)}
+  else if(a==='test-start'){S.th=0;S.screen='theme'}
+  else if(a==='theme-go'){S.screen='quiz'}
+  else if(a==='opt'){const q=S.questions[S.qi],i=+el.dataset.i;let cur=(S.answers[q.id]||[]).slice();
+    if(q.maxChoices>0){const k=cur.indexOf(i);if(k>=0)cur.splice(k,1);else if(cur.length<q.maxChoices)cur.push(i)}else cur=[i];S.answers[q.id]=cur;save()}
+  else if(a==='prev'){S.qi--;save()}
+  else if(a==='next'||a==='fun-pick'||a==='hint'||a==='fun-next'){const r=funActions(a,el);if(r==='finish'){S.screen='analysis';S.error='';render();
+    try{await Promise.all([(async()=>{await api('POST','/answers',{answers:S.answers});await api('POST','/compatibility/analyze')})(),new Promise(r=>setTimeout(r,1800))]);await enter();S.tab='matches'}
+    catch(x){S.screen='quiz';fail(x);return}}else if(r==='handled')save()}
+  else if(a==='tab'){closeChat();S.tab=el.dataset.t;S.detail=null;S.det=null;S.error='';try{await loadAll();const p=await api('GET','/profile');S.user=p.user;S.traits=p.traits}catch(x){}}
+  else if(a==='refresh'){return go(loadAll)}
+  else if(a==='open'){const m=S.matches[+el.dataset.i];if(m.locked){S.sheet=true}else{S.detail=+el.dataset.i;S.det=null;render();return go(async()=>{S.det=await api('GET','/matches/'+m.user.id)})}}
+  else if(a==='reload-detail'){const m=S.matches[S.detail];return go(async()=>{S.det=await api('GET','/matches/'+m.user.id)})}
+  else if(a==='back'){if(S.chat!=null){closeChat();try{await loadAll()}catch(x){}}else{S.detail=null;S.det=null}}
+  else if(a==='req'){S.busy=true;return go(async()=>{try{await api('POST','/connections/'+id)}catch(x){if(x.code==='premium_required'){S.sheet=true}else throw x}const m=S.matches[S.detail];S.det=await api('GET','/matches/'+m.user.id);await loadAll()})}
+  else if(a==='accept'||a==='reject'){return go(async()=>{await api('POST',`/connections/${id}/${a}`);await loadAll();if(S.detail!=null){const m=S.matches[S.detail];if(m&&!m.locked)S.det=await api('GET','/matches/'+m.user.id)}})}
+  else if(a==='chat'){const uid=+el.dataset.uid;const c=S.convs.find(x=>x.id===id);const person=c?c.user:(S.det&&S.det.user)||{name:''};return openChat(id,person)}
+  else if(a==='report'){S.report=id}
+  else if(a==='send-report'){const uid=S.report,cat=el.dataset.c;S.report=null;return go(async()=>{await api('POST','/reports',{userId:uid,category:cat});alert('Merci, ton signalement a été envoyé. Il est confidentiel.')})}
+  else if(a==='send-appeal'){return go(async()=>{await api('POST','/appeal',{text:$('f-appeal').value.trim()});S.info='Ta demande a été envoyée. Nous l\'examinerons rapidement.'})}
+  else if(a==='block'){if(!confirm('Bloquer ce profil ?'))return;return go(async()=>{await api('POST','/blocks',{userId:id});S.detail=null;S.det=null;await loadAll()})}
+  else if(a==='export'){return go(async()=>{const d=await api('GET','/account/export');const u=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));const l=document.createElement('a');l.href=u;l.download='mes-donnees-nexa.json';l.click();setTimeout(()=>URL.revokeObjectURL(u),5000)})}
+  else if(a==='premium'){S.sheet=true}
+  else if(a==='go-premium'){return go(async()=>{await api('POST','/subscription');S.sheet=false;const p=await api('GET','/profile');S.user=p.user;await loadAll();if(S.chat!=null){CH.canSend=true;await pollChat()}})}
+  else if(a==='logout'){closeChat();S.token=null;S.user=null;S.screen='welcome';S.mode='welcome';S.answers={};S.qi=0;S.detail=null;save()}
+  else if(a==='delete'){if(!confirm('Supprimer définitivement ton compte et toutes tes données ?'))return;return go(async()=>{await api('DELETE','/account');S.token=null;S.user=null;S.screen='welcome';S.mode='welcome';S.answers={};S.qi=0;save()})}
+  render();window.scrollTo(0,0);
+});
+setInterval(async()=>{if(S.screen==='app'&&S.chat==null&&S.detail==null&&!S.sheet&&!document.hidden){try{await loadAll();render()}catch(e){if(e.code==='suspended'){S.screen='suspended';render()}}}},15000);
+boot();
+
+</script></body></html>

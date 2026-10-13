@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>NEXA — Modération</title>
+<style>
+:root{color-scheme:light dark;--bg:#f1f6fd;--card:#fff;--ink:#0e1b33;--mute:#5b6b88;--line:#d5e1f3;--pri:#1c5fd6;--bad:#c0341d}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1424;--card:#13213a;--ink:#eaf1ff;--mute:#9bb0d1;--line:#27395c;--pri:#6ea4ff;--bad:#ff8a73}}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}main{max-width:820px;margin:0 auto;padding:18px}
+h1{font-size:24px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+button{font:inherit;border:0;border-radius:10px;padding:8px 12px;background:var(--pri);color:#fff;cursor:pointer;margin:4px 6px 0 0}button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}button.bad{background:var(--bad)}
+input,textarea{font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%;box-sizing:border-box}
+.mute{color:var(--mute)}.ph{display:inline-block;width:84px;height:112px;border-radius:10px;background:var(--line) center/cover;margin:6px 8px 0 0;position:relative}.ph.h{outline:3px solid var(--bad)}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;border:1px solid var(--line);font-size:13px;margin:2px 4px 2px 0}
+</style></head><body><main>
+<h1>NEXA — Modération</h1>
+<div id="login" class="card"><label for="tok">Jeton administrateur</label><input id="tok" type="password" autocomplete="off"><button id="go">Entrer</button><p id="err" class="mute"></p></div>
+<div id="app" hidden></div>
+</main>
+<script>
+let TOKEN='';const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(m,p){const r=await fetch(p,{method:m,headers:{'X-Admin-Token':TOKEN}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||r.status);return d}
+async function load(){
+  const d=await api('GET','/admin/overview');const bk=await api('GET','/admin/backups');$('login').hidden=true;$('app').hidden=false;
+  $('app').innerHTML=`<div class="card"><b>Sauvegardes</b> <span class="mute">· base : ${(bk.dbBytes/1048576).toFixed(1)} Mo</span><p class="mute">${bk.backups.length?'Dernière sauvegarde automatique : '+esc(bk.backups[0].date):'Aucune sauvegarde automatique pour le moment.'}</p><button data-a="backup-now">Créer une sauvegarde</button><button class="alt" data-a="backup-dl">Télécharger une copie de la base</button><p class="mute" style="font-size:13px">Conserve une copie sur ton ordinateur : si l'hébergement efface ses fichiers, c'est ta protection.</p></div><p class="mute">${d.stats.users} comptes · ${d.stats.suspended} suspendus · ${d.stats.openReports} signalements ouverts</p>
+  <h2>Profils signalés</h2>${d.reported.length?d.reported.map(u=>`<div class="card"><b>${esc(u.name)}, ${u.age}</b> · ${esc(u.city)} · <span class="mute">${esc(u.phone)}</span> ${u.suspended?'<span class="tag" style="color:var(--bad)">SUSPENDU</span>':''}
+  <div class="mute">${u.reporters} signaleur(s) différent(s)</div>${u.reports.map(r=>`<div><span class="tag">${esc(r.category)}</span>${esc(r.details||'')} <span class="mute">${esc(r.created_at)}${r.photo_id?' · photo #'+r.photo_id:''}</span></div>`).join('')}
+  <div>${u.photos.map(p=>`<div class="ph ${p.hidden?'h':''}" data-p="${p.id}" title="photo #${p.id}${p.hidden?' (masquée)':''}"></div>`).join('')}</div>
+  <div>${u.suspended?`<button data-a="unsuspend" data-id="${u.id}">Réactiver</button>`:`<button class="bad" data-a="suspend" data-id="${u.id}">Suspendre</button>`}<button class="alt" data-a="dismiss" data-id="${u.id}">Classer sans suite</button>
+  ${u.photos.map(p=>`<button class="alt" data-a="${p.hidden?'show':'hide'}-photo" data-id="${p.id}">${p.hidden?'Réafficher':'Masquer'} #${p.id}</button><button class="alt" data-a="del-photo" data-id="${p.id}">Supprimer #${p.id}</button>`).join('')}</div></div>`).join(''):'<p class="mute">Aucun signalement ouvert.</p>'}
+  <h2>Demandes de recours</h2>${d.appeals.length?d.appeals.map(a=>`<div class="card"><b>${esc(a.name)}</b> <span class="mute">${esc(a.created_at)}</span><p>${esc(a.text)}</p><button data-a="unsuspend" data-id="${a.user_id}">Réactiver ce compte</button></div>`).join(''):'<p class="mute">Aucun recours.</p>'}`;
+  document.querySelectorAll('[data-p]').forEach(async el=>{try{const r=await fetch('/admin/photos/'+el.dataset.p,{headers:{'X-Admin-Token':TOKEN}});el.style.backgroundImage=`url(${URL.createObjectURL(await r.blob())})`}catch(e){}});
+}
+$('go').onclick=async()=>{TOKEN=$('tok').value.trim();try{await load()}catch(e){$('err').textContent=e.message}};
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-a]');if(!b)return;const id=b.dataset.id,a=b.dataset.a;
+  if(a==='backup-dl'){try{const r=await fetch('/admin/backup',{headers:{'X-Admin-Token':TOKEN}});if(!r.ok)throw new Error(r.status);const u=URL.createObjectURL(await r.blob());const l=document.createElement('a');l.href=u;l.download='nexa-sauvegarde-'+new Date().toISOString().slice(0,10)+'.db';l.click();setTimeout(()=>URL.revokeObjectURL(u),5000)}catch(x){alert('Échec du téléchargement : '+x.message)}return}
+  if(a==='backup-now'){try{await api('POST','/admin/backups');await load()}catch(x){alert(x.message)}return}
+  const map={suspend:['POST',`/admin/users/${id}/suspend`,'Suspendre ce compte ?'],unsuspend:['POST',`/admin/users/${id}/unsuspend`],dismiss:['POST',`/admin/users/${id}/dismiss`],'hide-photo':['POST',`/admin/photos/${id}/hide`],'show-photo':['POST',`/admin/photos/${id}/show`],'del-photo':['DELETE',`/admin/photos/${id}`,'Supprimer définitivement cette photo ?']};
+  const [m,p,q]=map[a];if(q&&!confirm(q))return;try{await api(m,p);await load()}catch(x){alert(x.message)}});
+</script></body></html>
