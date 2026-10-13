@@ -8,6 +8,9 @@
   "scripts": {
     "start": "node --no-warnings src/index.js",
     "dev": "NEXA_DEMO=1 node --no-warnings src/index.js",
-    "test": "node --no-warnings test/test.js"
+    "test": "node --no-warnings test/test.js && node --no-warnings test/moderation.test.js && node --no-warnings test/data.test.js",
+    "check": "node --no-warnings tools/check.js",
+    "backup": "node --no-warnings tools/backup.js",
+    "restore": "node --no-warnings tools/restore.js"
   }
 }

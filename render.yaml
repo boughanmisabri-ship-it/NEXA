@@ -3,6 +3,12 @@ services:
     name: nexa
     runtime: node
     plan: free
+    # POUR NE RIEN PERDRE AU REDÉMARRAGE (nécessite un plan payant de Render) : retire les # des 4 lignes ci-dessous
+    # ET ajoute la variable NEXA_DB = /var/data/nexa.db  (les sauvegardes iront dans /var/data/backups)
+    # disk:
+    #   name: nexa-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
     buildCommand: echo "rien à installer"
     startCommand: npm start
     envVars:
@@ -10,7 +16,11 @@ services:
         value: 22.16.0
       - key: NEXA_SECRET
         generateValue: true
-      # Réglage de TEST : seuil de match abaissé à 60 % (80 % pour un vrai lancement : supprimer ces 2 lignes).
+      # Réglage de TEST : seuil de match abaissé à 60 % (75 % pour un vrai lancement : supprimer ces 2 lignes).
       # Les hommes matchent uniquement avec les femmes (et inversement) selon "Je suis / Je cherche".
       - key: NEXA_THRESHOLD
         value: "60"
+      # TEST UNIQUEMENT : affiche le code de vérification à l'écran (pas de SMS réel).
+      # Avant un vrai lancement : SUPPRIMER cette ligne et brancher un service SMS (NEXA_SMS=twilio + TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM).
+      - key: NEXA_DEV_CODES
+        value: "1"
