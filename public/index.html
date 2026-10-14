@@ -72,19 +72,25 @@ const strength=v=>v>=90?'très forte':v>=80?'forte':v>=70?'bonne':'moyenne';
 const $app=document.getElementById('app');
 const $=id=>document.getElementById(id);
 
-let S={fi:0,interludes:[],fun:[],report:null,photoAsked:false,needPhoto:false,devCode:'',info:'',th:0,token:null,screen:'boot',mode:'register',tab:'matches',user:null,traits:{},questions:[],answers:{},qi:0,matches:[],threshold:80,incoming:[],convs:[],notifs:[],detail:null,det:null,chat:null,sheet:false,error:'',busy:false};
+let S={draft:null,recovered:false,notice:'',fi:0,interludes:[],fun:[],report:null,photoAsked:false,needPhoto:false,devCode:'',info:'',th:0,token:null,screen:'boot',mode:'register',tab:'matches',user:null,traits:{},questions:[],answers:{},qi:0,matches:[],threshold:80,incoming:[],convs:[],notifs:[],detail:null,det:null,chat:null,sheet:false,error:'',busy:false};
 let CH={id:null,person:null,msgs:[],last:0,total:0,canSend:true,shown:true,timer:null};
 
-function save(){try{localStorage.setItem('nexa-live',JSON.stringify({token:S.token,answers:S.answers,qi:S.qi}))}catch(e){}}
-function restore(){try{const d=JSON.parse(localStorage.getItem('nexa-live')||'null');if(d){S.token=d.token;S.answers=d.answers||{};S.qi=d.qi||0}}catch(e){}}
+function save(){try{localStorage.setItem('nexa-live',JSON.stringify({token:S.token,answers:S.answers,qi:S.qi,draft:S.draft}))}catch(e){}}
+function restore(){try{const d=JSON.parse(localStorage.getItem('nexa-live')||'null');if(d){S.token=d.token;S.answers=d.answers||{};S.qi=d.qi||0;S.draft=d.draft||null}}catch(e){}}
 
 async function api(method,path,body){
   const r=await fetch(path,{method,headers:{'Content-Type':'application/json',...(S.token?{Authorization:'Bearer '+S.token}:{})},body:body?JSON.stringify(body):undefined});
   let d={};try{d=await r.json()}catch(e){}
-  if(!r.ok){const e=new Error(d.error||('Erreur '+r.status));e.status=r.status;e.code=d.code;throw e}
+  if(!r.ok){
+    if(r.status===401&&S.token&&!path.startsWith('/auth/')){
+      // Le serveur ne reconnaît plus ce compte (serveur de test redémarré) : on garde les réponses au test pour les réutiliser.
+      S.token=null;S.recovered=Object.keys(S.answers).length>0;S.notice="Ta session a expiré : le serveur de test a redémarré et ton compte a été effacé. "+(S.recovered?"Tes réponses au test sont gardées : recrée ton compte en 1 minute, tu n'auras pas à refaire le test.":"Recrée ton compte pour continuer.");
+      save();const e=new Error(S.notice);e.status=401;e.code='session_lost';throw e}
+    const e=new Error(d.error||('Erreur '+r.status));e.status=r.status;e.code=d.code;throw e}
   return d;
 }
-const fail=e=>{if(e.code==='suspended'){if(S.user)S.user.suspended=true;S.screen='suspended';S.busy=false;render();return}
+const fail=e=>{if(e.code==='session_lost'){closeChat();S.user=null;S.screen='welcome';S.mode='register-form';S.busy=false;S.error='';render();return}
+  if(e.code==='suspended'){if(S.user)S.user.suspended=true;S.screen='suspended';S.busy=false;render();return}
   if(e.code==='phone_unverified'){S.screen='verify';S.busy=false;sendCode().then(render);return}
   S.error=e.message==='Failed to fetch'?'Connexion impossible au serveur.':e.message;S.busy=false;render()};
 
@@ -96,17 +102,25 @@ async function sendCode(){
   try{const r=await api('POST','/auth/send-code');S.devCode=r.devCode||'';S.info=r.sent?('Code envoyé au '+S.user.phone+'.'):'';S.error=''}
   catch(e){S.error=e.message==='Failed to fetch'?'Connexion impossible au serveur.':e.message}
 }
+const allAnswered=()=>S.questions.every(q=>q.key==='dealbreakers'||(S.answers[q.id]&&S.answers[q.id].length));
+async function submitAll(){
+  S.screen='analysis';S.error='';render();
+  try{await Promise.all([(async()=>{await api('POST','/answers',{answers:S.answers});await api('POST','/compatibility/analyze')})(),new Promise(r=>setTimeout(r,1800))]);S.recovered=false;await enter();S.tab='matches'}
+  catch(x){S.screen='quiz';fail(x)}
+}
+async function ensureQuestions(){if(!S.questions.length){const qq=await api('GET','/questions');S.questions=qq.questions;S.interludes=qq.interludes}}
 async function enter(){
   const p=await api('GET','/profile');S.user=p.user;S.traits=p.traits;S.fun=p.fun||[];
   if(S.user.suspended){S.screen='suspended';return}
   if(!S.user.verified){S.screen='verify';await sendCode();return}
   if(!S.user.completed&&!(S.user.photos||[]).length&&!S.photoAsked){S.screen='photo';return}
-  if(!S.questions.length){const qq=await api('GET','/questions');S.questions=qq.questions;S.interludes=qq.interludes}
+  if(S.recovered&&!S.user.completed){await ensureQuestions();if(allAnswered()){await submitAll();return}}
+  await ensureQuestions();
   if(S.user.completed){await loadAll();S.screen='app'}else S.screen=(S.qi===0&&!Object.keys(S.answers).length)?'intro':'quiz';
 }
 async function boot(){
   restore();
-  if(S.token){try{await enter();render();return}catch(e){S.token=null;save()}}
+  if(S.token){try{await enter();render();return}catch(e){if(e.code!=='session_lost'){S.token=null;save()}else{S.screen='welcome';S.mode='register-form';render();return}}}
   S.screen='welcome';render();
 }
 
@@ -129,16 +143,16 @@ function viewPhoto(){return `<h2>Ajoute ta photo</h2><p class="mute">Une vraie p
 
 /* ---------- vues ---------- */
 const err=()=>S.error?`<p class="warn" role="alert">${esc(S.error)}</p>`:'';
-function viewWelcome(){return `<section class="hero"><h1 class="brand">NEXA</h1><h2>Ton partenaire qui te convient le mieux</h2><p class="mute">NEXA compare tes réponses à celles des autres pour te proposer les personnes les plus compatibles avec toi.</p><button class="btn" data-a="go-register">Commencer</button><button class="link" data-a="go-login">J'ai déjà un compte</button><p class="note">Version test : tes réponses servent uniquement à calculer la compatibilité.</p></section>`}
+function viewWelcome(){return `<section class="hero">${S.notice?`<div class="wall" style="text-align:left">${esc(S.notice)}</div>`:''}<h1 class="brand">NEXA</h1><h2>Ton partenaire qui te convient le mieux</h2><p class="mute">NEXA compare tes réponses à celles des autres pour te proposer les personnes les plus compatibles avec toi.</p><button class="btn" data-a="go-register">Commencer</button><button class="link" data-a="go-login">J'ai déjà un compte</button><p class="note">Version test : tes réponses servent uniquement à calculer la compatibilité.</p></section>`}
 function viewLogin(){return `<h2>Connexion</h2><label for="f-phone">Numéro de téléphone</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel"><label for="f-pass">Mot de passe</label><input id="f-pass" type="password" autocomplete="current-password">${err()}<div style="height:18px"></div><button class="btn" data-a="login" ${S.busy?'disabled':''}>Se connecter</button><button class="link" data-a="go-welcome">Retour</button>`}
-function viewRegister(){return `<h2>Crée ton profil</h2>
-<label for="f-phone">Numéro de téléphone (ex. 20123456 ou +21620123456)</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel">
+function viewRegister(){return `<h2>Crée ton profil</h2>${S.notice?`<div class="wall" style="text-align:left">${esc(S.notice)}</div>`:''}
+<label for="f-phone">Numéro de téléphone (ex. 20123456 ou +21620123456)</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" value="${esc((S.draft||{}).phone||'')}">
 <label for="f-pass">Mot de passe (8 caractères, avec des lettres)</label><input id="f-pass" type="password" autocomplete="new-password">
-<label for="f-name">Prénom affiché</label><input id="f-name" maxlength="40" autocomplete="given-name">
-<label for="f-age">Âge (18 ans minimum)</label><input id="f-age" type="number" inputmode="numeric" min="18" max="99" value="25">
-<label for="f-city">Ville</label><select id="f-city">${CITIES.map(c=>`<option>${c}</option>`).join('')}</select>
-<label for="f-gender">Je suis</label><select id="f-gender"><option>Femme</option><option>Homme</option></select>
-<label for="f-look">Je cherche</label><select id="f-look"><option>Un homme</option><option>Une femme</option></select>
+<label for="f-name">Prénom affiché</label><input id="f-name" maxlength="40" autocomplete="given-name" value="${esc((S.draft||{}).name||'')}">
+<label for="f-age">Âge (18 ans minimum)</label><input id="f-age" type="number" inputmode="numeric" min="18" max="99" value="${(S.draft||{}).age||25}">
+<label for="f-city">Ville</label><select id="f-city">${CITIES.map(c=>`<option ${c===(S.draft||{}).city?'selected':''}>${c}</option>`).join('')}</select>
+<label for="f-gender">Je suis</label><select id="f-gender">${['Femme','Homme'].map(g=>`<option ${g===(S.draft||{}).gender?'selected':''}>${g}</option>`).join('')}</select>
+<label for="f-look">Je cherche</label><select id="f-look">${['Un homme','Une femme'].map(g=>`<option ${g===(S.draft||{}).look?'selected':''}>${g}</option>`).join('')}</select>
 ${err()}<div style="height:18px"></div><button class="btn" data-a="register" ${S.busy?'disabled':''}>Continuer vers le test</button><button class="link" data-a="go-welcome">Retour</button>`}
 const QS=()=>S.questions,INTERS=()=>S.interludes||[];
 const THEMES=[
@@ -259,8 +273,8 @@ $app.addEventListener('click',async e=>{
   else if(a==='go-login'){S.mode='login';S.error=''}
   else if(a==='go-welcome'){S.mode='welcome';S.error=''}
   else if(a==='login'){S.busy=true;return go(async()=>{const r=await api('POST','/auth/login',{phone:$('f-phone').value.trim(),password:$('f-pass').value});S.token=r.token;save();await enter()})}
-  else if(a==='register'){const age=parseInt($('f-age').value,10);S.busy=true;
-    return go(async()=>{const r=await api('POST','/auth/register',{phone:$('f-phone').value.trim(),password:$('f-pass').value,name:$('f-name').value.trim(),age,city:$('f-city').value,gender:$('f-gender').value,lookingFor:$('f-look').value});S.token=r.token;S.answers={};S.qi=0;S.th=0;save();await enter()})}
+  else if(a==='register'){const age=parseInt($('f-age').value,10);S.draft={phone:$('f-phone').value.trim(),name:$('f-name').value.trim(),age,city:$('f-city').value,gender:$('f-gender').value,look:$('f-look').value};save();S.busy=true;
+    return go(async()=>{const r=await api('POST','/auth/register',{phone:$('f-phone').value.trim(),password:$('f-pass').value,name:$('f-name').value.trim(),age,city:$('f-city').value,gender:$('f-gender').value,lookingFor:$('f-look').value});S.token=r.token;if(!S.recovered){S.answers={};S.qi=0;S.th=0}S.notice='';save();await enter()})}
   else if(a==='photo-next'){S.photoAsked=true;S.busy=true;return go(enter)}
   else if(a==='del-photo'){return go(async()=>{const r=await api('DELETE','/photos/'+id);S.user.photos=r.photos})}
   else if(a==='verify'){S.busy=true;return go(async()=>{await api('POST','/auth/verify-code',{code:$('f-code').value.trim()});S.devCode='';S.info='';await enter()})}
@@ -270,9 +284,7 @@ $app.addEventListener('click',async e=>{
   else if(a==='opt'){const q=S.questions[S.qi],i=+el.dataset.i;let cur=(S.answers[q.id]||[]).slice();
     if(q.maxChoices>0){const k=cur.indexOf(i);if(k>=0)cur.splice(k,1);else if(cur.length<q.maxChoices)cur.push(i)}else cur=[i];S.answers[q.id]=cur;save()}
   else if(a==='prev'){S.qi--;save()}
-  else if(a==='next'||a==='fun-pick'||a==='hint'||a==='fun-next'){const r=funActions(a,el);if(r==='finish'){S.screen='analysis';S.error='';render();
-    try{await Promise.all([(async()=>{await api('POST','/answers',{answers:S.answers});await api('POST','/compatibility/analyze')})(),new Promise(r=>setTimeout(r,1800))]);await enter();S.tab='matches'}
-    catch(x){S.screen='quiz';fail(x);return}}else if(r==='handled')save()}
+  else if(a==='next'||a==='fun-pick'||a==='hint'||a==='fun-next'){const r=funActions(a,el);if(r==='finish'){await submitAll();return}else if(r==='handled')save()}
   else if(a==='tab'){closeChat();S.tab=el.dataset.t;S.detail=null;S.det=null;S.error='';try{await loadAll();const p=await api('GET','/profile');S.user=p.user;S.traits=p.traits}catch(x){}}
   else if(a==='refresh'){return go(loadAll)}
   else if(a==='open'){const m=S.matches[+el.dataset.i];if(m.locked){S.sheet=true}else{S.detail=+el.dataset.i;S.det=null;render();return go(async()=>{S.det=await api('GET','/matches/'+m.user.id)})}}
@@ -288,11 +300,12 @@ $app.addEventListener('click',async e=>{
   else if(a==='export'){return go(async()=>{const d=await api('GET','/account/export');const u=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));const l=document.createElement('a');l.href=u;l.download='mes-donnees-nexa.json';l.click();setTimeout(()=>URL.revokeObjectURL(u),5000)})}
   else if(a==='premium'){S.sheet=true}
   else if(a==='go-premium'){return go(async()=>{await api('POST','/subscription');S.sheet=false;const p=await api('GET','/profile');S.user=p.user;await loadAll();if(S.chat!=null){CH.canSend=true;await pollChat()}})}
-  else if(a==='logout'){closeChat();S.token=null;S.user=null;S.screen='welcome';S.mode='welcome';S.answers={};S.qi=0;S.detail=null;save()}
+  else if(a==='logout'){S.recovered=false;S.notice='';closeChat();S.token=null;S.user=null;S.screen='welcome';S.mode='welcome';S.answers={};S.qi=0;S.detail=null;save()}
   else if(a==='delete'){if(!confirm('Supprimer définitivement ton compte et toutes tes données ?'))return;return go(async()=>{await api('DELETE','/account');S.token=null;S.user=null;S.screen='welcome';S.mode='welcome';S.answers={};S.qi=0;save()})}
   render();window.scrollTo(0,0);
 });
 setInterval(async()=>{if(S.screen==='app'&&S.chat==null&&S.detail==null&&!S.sheet&&!document.hidden){try{await loadAll();render()}catch(e){if(e.code==='suspended'){S.screen='suspended';render()}}}},15000);
+setInterval(()=>{if(!document.hidden)fetch('/health').catch(()=>{})},240000);
 boot();
 
 </script></body></html>
