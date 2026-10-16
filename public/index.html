@@ -72,11 +72,11 @@ const strength=v=>v>=90?'très forte':v>=80?'forte':v>=70?'bonne':'moyenne';
 const $app=document.getElementById('app');
 const $=id=>document.getElementById(id);
 
-let S={draft:null,recovered:false,notice:'',fi:0,interludes:[],fun:[],report:null,photoAsked:false,needPhoto:false,devCode:'',info:'',th:0,token:null,screen:'boot',mode:'register',tab:'matches',user:null,traits:{},questions:[],answers:{},qi:0,matches:[],threshold:80,incoming:[],convs:[],notifs:[],detail:null,det:null,chat:null,sheet:false,error:'',busy:false};
+let S={ansVersion:1,qVersion:2,answerMap:{},quizNote:'',draft:null,recovered:false,notice:'',fi:0,interludes:[],fun:[],report:null,photoAsked:false,needPhoto:false,devCode:'',info:'',th:0,token:null,screen:'boot',mode:'register',tab:'matches',user:null,traits:{},questions:[],answers:{},qi:0,matches:[],threshold:80,incoming:[],convs:[],notifs:[],detail:null,det:null,chat:null,sheet:false,error:'',busy:false};
 let CH={id:null,person:null,msgs:[],last:0,total:0,canSend:true,shown:true,timer:null};
 
-function save(){try{localStorage.setItem('nexa-live',JSON.stringify({token:S.token,answers:S.answers,qi:S.qi,draft:S.draft}))}catch(e){}}
-function restore(){try{const d=JSON.parse(localStorage.getItem('nexa-live')||'null');if(d){S.token=d.token;S.answers=d.answers||{};S.qi=d.qi||0;S.draft=d.draft||null}}catch(e){}}
+function save(){try{localStorage.setItem('nexa-live',JSON.stringify({token:S.token,answers:S.answers,qi:S.qi,draft:S.draft,v:S.ansVersion}))}catch(e){}}
+function restore(){try{const d=JSON.parse(localStorage.getItem('nexa-live')||'null');if(d){S.token=d.token;S.answers=d.answers||{};S.qi=d.qi||0;S.draft=d.draft||null;S.ansVersion=d.v||1}}catch(e){}}
 
 async function api(method,path,body){
   const r=await fetch(path,{method,headers:{'Content-Type':'application/json',...(S.token?{Authorization:'Bearer '+S.token}:{})},body:body?JSON.stringify(body):undefined});
@@ -102,20 +102,43 @@ async function sendCode(){
   try{const r=await api('POST','/auth/send-code');S.devCode=r.devCode||'';S.info=r.sent?('Code envoyé au '+S.user.phone+'.'):'';S.error=''}
   catch(e){S.error=e.message==='Failed to fetch'?'Connexion impossible au serveur.':e.message}
 }
+
+/* ---------- reprise des anciennes réponses (questions révisées) ---------- */
+function applyMap(ans){
+  const out={...ans};
+  for(const [id,map] of Object.entries(S.answerMap||{})){
+    const cur=ans[id];if(!cur||!cur.length)continue;
+    const q=S.questions.find(x=>String(x.id)===id);
+    let next=[...new Set(cur.map(i=>map[i]).filter(v=>v!==null&&v!==undefined))];
+    next=next.slice(0,q&&q.maxChoices>0?q.maxChoices:1);
+    if(next.length)out[id]=next;else delete out[id];
+  }
+  return out}
+const firstUnanswered=()=>S.questions.findIndex(q=>q.key!=='dealbreakers'&&!(S.answers[q.id]&&S.answers[q.id].length));
+function resumeQuiz(note){const k=firstUnanswered();if(k>=0){S.qi=k;S.th=themeOf(S.questions[k].id);if(note)S.quizNote=note}}
 const allAnswered=()=>S.questions.every(q=>q.key==='dealbreakers'||(S.answers[q.id]&&S.answers[q.id].length));
 async function submitAll(){
   S.screen='analysis';S.error='';render();
   try{await Promise.all([(async()=>{await api('POST','/answers',{answers:S.answers});await api('POST','/compatibility/analyze')})(),new Promise(r=>setTimeout(r,1800))]);S.recovered=false;await enter();S.tab='matches'}
   catch(x){S.screen='quiz';fail(x)}
 }
-async function ensureQuestions(){if(!S.questions.length){const qq=await api('GET','/questions');S.questions=qq.questions;S.interludes=qq.interludes}}
+async function ensureQuestions(){
+  if(S.questions.length)return;
+  const qq=await api('GET','/questions');S.questions=qq.questions;S.interludes=qq.interludes;S.qVersion=qq.version||1;S.answerMap=qq.answerMap||{};
+  if(!Object.keys(S.answers).length)S.ansVersion=S.qVersion;
+  else if((S.ansVersion||1)<S.qVersion){S.answers=applyMap(S.answers);S.ansVersion=S.qVersion;S.migrated=true;save()}
+}
 async function enter(){
   const p=await api('GET','/profile');S.user=p.user;S.traits=p.traits;S.fun=p.fun||[];
   if(S.user.suspended){S.screen='suspended';return}
   if(!S.user.verified){S.screen='verify';await sendCode();return}
   if(!S.user.completed&&!(S.user.photos||[]).length&&!S.photoAsked){S.screen='photo';return}
-  if(S.recovered&&!S.user.completed){await ensureQuestions();if(allAnswered()){await submitAll();return}}
   await ensureQuestions();
+  if(!S.user.completed){
+    try{const sv=await api('GET','/answers');let added=false;for(const [k,v] of Object.entries(sv.answers||{}))if(!(S.answers[k]&&S.answers[k].length)){S.answers[k]=v;added=true}if(added)save()}catch(e){if(e.code==='session_lost')throw e}
+    if(allAnswered()){await submitAll();return}
+    if(Object.keys(S.answers).length){resumeQuiz(S.migrated?'Nous avons simplifié quelques questions : tes réponses sont gardées, il ne reste que celles-ci à compléter.':'');S.migrated=false}
+  }
   if(S.user.completed){await loadAll();S.screen='app'}else S.screen=(S.qi===0&&!Object.keys(S.answers).length)?'intro':'quiz';
 }
 async function boot(){
@@ -170,13 +193,13 @@ const HINT_ID=113;
 function viewIntro(){const n=QS().length;return `<section class="hero"><p class="sec">Ton test NEXA</p><h2>${THEMES.length} thèmes · ${n} questions</h2><p class="mute">Environ 8 minutes, avec des petites pauses fun entre les thèmes. Réponds spontanément : il n'y a pas de bonne ou de mauvaise réponse. À la fin de chaque thème, on te le dit et on passe au suivant.</p><div>${THEMES.map((t,i)=>`<p style="margin:6px 0">${t.emoji} <b>${i+1}.</b> ${esc(t.title)} <span class="mute">· ${themeQs(i).length} questions</span></p>`).join('')}</div><button class="btn" data-a="test-start">C'est parti</button></section>`}
 function viewTheme(){const i=S.th,t=THEMES[i];return `<section class="hero" style="text-align:center">${i>0?`<p class="sec" style="font-size:18px">✅ Thème ${i} terminé !</p>`:''}<div class="av">${t.emoji}</div><p class="sec">Thème ${i+1}/${THEMES.length}</p><h2>${esc(t.title)}</h2><p class="mute">${esc(t.desc)} · ${themeQs(i).length} questions</p><button class="btn" data-a="theme-go">${i>0?'Passer au thème suivant':'Commencer'}</button></section>`}
 function viewQuiz(){const qs=QS(),q=qs[S.qi],ti=themeOf(q.id),t=THEMES[ti],tq=themeQs(ti),pos=tq.indexOf(q)+1,tot=tq.length,sel=S.answers[q.id]||[],opt=q.key==='dealbreakers',multi=q.maxChoices>0,endT=pos===tot,lastT=ti===THEMES.length-1;
-return `<p class="sec">${t.emoji} Thème ${ti+1}/${THEMES.length} · ${esc(t.title)}</p><div class="bar" role="progressbar" aria-valuemin="1" aria-valuemax="${tot}" aria-valuenow="${pos}"><i style="width:${pos/tot*100}%"></i></div><p class="mute" style="margin:0 0 12px">Question ${pos}/${tot}</p><h2 class="q">${esc(q.text)}</h2>${multi&&!opt?`<p class="mute">Choisis jusqu'à ${q.maxChoices} réponses</p>`:''}
+return `<p class="sec">${t.emoji} Thème ${ti+1}/${THEMES.length} · ${esc(t.title)}</p><div class="bar" role="progressbar" aria-valuemin="1" aria-valuemax="${tot}" aria-valuenow="${pos}"><i style="width:${pos/tot*100}%"></i></div><p class="mute" style="margin:0 0 12px">Question ${pos}/${tot}</p>${S.quizNote?`<p class="note" style="text-align:left">${esc(S.quizNote)}</p>`:''}<h2 class="q">${esc(q.text)}</h2>${multi&&!opt?`<p class="mute">Choisis jusqu'à ${q.maxChoices} réponses</p>`:''}
 ${q.options.map((o,i)=>`<button class="opt" data-a="opt" data-i="${i}" aria-pressed="${sel.includes(i)}">${esc(o)}</button>`).join('')}${typeof err==='function'?err():''}
 <div class="row" style="margin-top:14px">${S.qi>0?'<button class="btn alt" data-a="prev" style="width:35%">Retour</button>':''}<button class="btn" data-a="next" ${(sel.length||opt)&&!S.busy?'':'disabled'}>${endT?(lastT?'Terminer le test':'Terminer le thème'):'Continuer'}</button></div>`}
 function funFb(it,i){if(it.kind==='riddle'){const hinted=(S.answers[HINT_ID]||[])[0]===1,r=i===it.answer?(hinted?it.results.hinted:it.results.solved):it.results.missed;return {tag:r.tag,text:r.feedback}}const o=it.options[i];return {tag:o.tag,text:o.feedback}}
-function viewFun(){const it=INTERS().find(x=>x.after===S.fi);if(!it)return '';const i=(S.answers[it.id]||[])[0],done=i!==undefined,dis=done?'disabled':'';let body='';
- if(it.kind==='riddle'){const hinted=(S.answers[HINT_ID]||[])[0]===1;body=(hinted?`<p class="note" style="text-align:left">💡 Indice : ${esc(it.hint)}</p>`:(done?'':'<button class="link" data-a="hint" style="text-align:left;padding-left:0">💡 Un indice ?</button>'))+it.options.map((o,k)=>`<button class="opt" data-a="fun-pick" data-i="${k}" aria-pressed="${i===k}" ${dis}>${esc(o.label)}</button>`).join('')}
- else if(it.kind==='colors'){body=`<div class="swatches">${it.options.map((o,k)=>`<button class="sw" data-a="fun-pick" data-i="${k}" aria-pressed="${i===k}" aria-label="${esc(o.label)}" style="background:${o.color}" ${dis}></button>`).join('')}</div>${done?`<p><b>${esc(it.options[i].label)}</b></p>`:'<p class="mute">Touche la couleur qui te parle</p>'}`}
+function viewFun(){const it=INTERS().find(x=>x.after===S.fi);if(!it)return '';const i=(S.answers[it.id]||[])[0],done=i!==undefined,dis='';let body='';
+ if(it.kind==='riddle'){const hinted=(S.answers[HINT_ID]||[])[0]===1;body=(hinted?`<p class="note" style="text-align:left">💡 Indice : ${esc(it.hint)}</p>`:'<button class="link" data-a="hint" style="text-align:left;padding-left:0">💡 Un indice ?</button>')+it.options.map((o,k)=>`<button class="opt" data-a="fun-pick" data-i="${k}" aria-pressed="${i===k}" ${dis}>${esc(o.label)}</button>`).join('')}
+ else if(it.kind==='colors'){body=`<div class="swatches">${it.options.map((o,k)=>`<button class="sw" data-a="fun-pick" data-i="${k}" aria-pressed="${i===k}" aria-label="${esc(o.label)}" style="background:${o.color}" ${dis}></button>`).join('')}</div>${done?`<p><b>${esc(it.options[i].label)}</b> <span class="mute">· touche une autre couleur pour changer</span></p>`:'<p class="mute">Touche la couleur qui te parle</p>'}`}
  else{body=`<div class="cards2">${it.options.map((o,k)=>`<button class="fcard" data-a="fun-pick" data-i="${k}" aria-pressed="${i===k}" ${dis}><span style="font-size:34px">${o.emoji}</span><br>${esc(o.label)}</button>`).join('')}</div>`}
  const f=done?funFb(it,i):null;
  return `<section><p class="sec">${it.emoji} Pause fun · ${esc(it.title)}</p><h2 class="q">${esc(it.prompt)}</h2>${body}${f?`<div class="wall" style="text-align:left"><b>${esc(f.tag)}</b><p style="margin:6px 0 0">${esc(f.text)}</p><p class="mute" style="font-size:12px;margin:8px 0 0">Juste pour le plaisir : ce n'est pas un test psychologique.</p></div>`:''}<div style="height:16px"></div><button class="btn" data-a="fun-next">${done?'Continuer':'Passer'}</button></section>`}

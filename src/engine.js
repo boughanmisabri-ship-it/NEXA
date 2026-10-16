@@ -98,9 +98,9 @@ function caps(a, b) {
   const out = [];
   const ca = first(a, 31), cb = first(b, 31);
   if (ca !== null && cb !== null) {
-    const d = Math.abs(ca - cb);
-    if (d >= 4) out.push({ max: 60, note: "Désir d'enfants très différent" });
-    else if (d === 3) out.push({ max: 70, note: "Désir d'enfants assez différent" });
+    const lo = Math.min(ca, cb), hi = Math.max(ca, cb);
+    if (lo === 0 && hi === 3) out.push({ max: 60, note: "Désir d'enfants très différent" });
+    else if (lo === 1 && hi === 3) out.push({ max: 70, note: "Désir d'enfants assez différent" });
   }
   const ia = first(a, 1), ib = first(b, 1);
   if (ia !== null && ib !== null) {
@@ -121,12 +121,11 @@ function triggered(owner, other) {
   const picks = owner[47] || [];
   const has = (i) => picks.includes(i);
   const out = [];
-  if (has(1) && first(other, 2) === 3) out.push('Infidélité');
-  if (has(4) && first(other, 37) === 4) out.push("Manque d'ambition");
-  if (has(5) && first(other, 3) === 0 && first(other, 5) === 0) out.push("Manque d'indépendance");
-  if (has(8) && (first(other, 31) ?? 0) >= 3) out.push("Refus d'avoir des enfants");
-  if (has(9) && first(other, 30) === 3) out.push('Refus du mariage');
-  if (has(10) && first(other, 6) === 3) out.push('Manque de communication');
+  if (has(1) && first(other, 2) === 2) out.push('Infidélité');
+  if (has(4) && first(other, 31) === 3) out.push("Refus d'avoir des enfants");
+  if (has(5) && first(other, 30) === 3) out.push('Refus du mariage');
+  if (has(6) && first(other, 6) === 3) out.push('Manque de communication');
+  if (has(7) && first(other, 37) === 2) out.push("Manque d'ambition");
   return out;
 }
 

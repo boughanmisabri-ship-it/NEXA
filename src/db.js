@@ -1,6 +1,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { migrateAnswers } from './answer_map.js';
+import { isComplete } from './engine.js';
 
 /**
  * Schéma versionné : chaque évolution de la base est une migration numérotée, jouée une seule fois, dans l'ordre.
@@ -136,9 +138,27 @@ export const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_reports_reported ON reports(reported_id, status);
     `),
   },
+  {
+    v: 4, name: 'questions révisées (3-4 choix) : reprise des anciennes réponses',
+    up: (db) => {
+      const users = db.prepare('SELECT DISTINCT user_id FROM answers').all().map((r) => r.user_id);
+      const get = db.prepare('SELECT question_id, selected FROM answers WHERE user_id = ?');
+      const del = db.prepare('DELETE FROM answers WHERE user_id = ? AND question_id = ?');
+      const upd = db.prepare('UPDATE answers SET selected = ? WHERE user_id = ? AND question_id = ?');
+      const setDone = db.prepare('UPDATE users SET completed = ? WHERE id = ?');
+      for (const uid of users) {
+        const cur = {};
+        for (const r of get.all(uid)) cur[r.question_id] = JSON.parse(r.selected);
+        const { answers, dropped } = migrateAnswers(cur);
+        for (const id of dropped) del.run(uid, id);
+        for (const [id, sel] of Object.entries(answers)) if (JSON.stringify(sel) !== JSON.stringify(cur[id])) upd.run(JSON.stringify(sel), uid, Number(id));
+        setDone.run(isComplete(answers) ? 1 : 0, uid);
+      }
+    },
+  },
 ];
 
-export function openDb(file) {
+export function openDb(file, { upTo = Infinity } = {}) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;');
@@ -151,7 +171,7 @@ export function openDb(file) {
   db.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL DEFAULT (datetime(\'now\')))');
   const done = new Set(db.prepare('SELECT version FROM schema_version').all().map((r) => r.version));
   for (const m of MIGRATIONS) {
-    if (done.has(m.v)) continue;
+    if (done.has(m.v) || m.v > upTo) continue;
     db.exec('BEGIN');
     try {
       m.up(db);

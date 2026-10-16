@@ -8,6 +8,7 @@ import { createBackup, listBackups, pruneBackups } from './backup.js';
 import { normalizePhone, passwordProblem, makeLimiter, genCode, hashCode, sendSms } from './security.js';
 import { activeQuestions } from './questions.js';
 import { interludes, funProfile } from './interludes.js';
+import { QUESTIONS_VERSION, ANSWER_MAP } from './answer_map.js';
 import {
   buildTraits, computeMatch, isComplete, validateAnswers, demoAnswerSets,
   DEMO_NAMES, DEMO_CITIES, MATCH_THRESHOLD,
@@ -269,7 +270,11 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
   route('GET', '/questions', () => ({
     questions: activeQuestions.map(({ id, dim, text, options, maxChoices, key }) => ({ id, dim, text, options, maxChoices, key })),
     interludes,
+    version: QUESTIONS_VERSION,
+    answerMap: ANSWER_MAP,
   }));
+
+  route('GET', '/answers', ({ user }) => ({ answers: answersOf(user.id), version: QUESTIONS_VERSION }));
 
   route('POST', '/answers', ({ user, body }) => {
     const v = validateAnswers(body.answers);
