@@ -156,6 +156,29 @@ export const MIGRATIONS = [
       }
     },
   },
+  {
+    v: 5, name: 'date de fin du test (statistiques)',
+    up: (db) => addColumn(db, 'users', 'completed_at', 'TEXT'),
+  },
+  {
+    v: 6, name: 'question du jour et jours d\'activité',
+    up: (db) => db.exec(`
+      CREATE TABLE IF NOT EXISTS daily_answers (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        day INTEGER NOT NULL,
+        qid INTEGER NOT NULL,
+        choice INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (user_id, day)
+      );
+      CREATE INDEX IF NOT EXISTS idx_daily_day ON daily_answers(day);
+      CREATE TABLE IF NOT EXISTS user_days (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        day INTEGER NOT NULL,
+        PRIMARY KEY (user_id, day)
+      );
+    `),
+  },
 ];
 
 export function openDb(file, { upTo = Infinity } = {}) {

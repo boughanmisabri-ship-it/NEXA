@@ -9,11 +9,11 @@ h1{font-size:24px}.card{background:var(--card);border:1px solid var(--line);bord
 button{font:inherit;border:0;border-radius:10px;padding:8px 12px;background:var(--pri);color:#fff;cursor:pointer;margin:4px 6px 0 0}button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}button.bad{background:var(--bad)}
 input,textarea{font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%;box-sizing:border-box}
 .mute{color:var(--mute)}.ph{display:inline-block;width:84px;height:112px;border-radius:10px;background:var(--line) center/cover;margin:6px 8px 0 0;position:relative}.ph.h{outline:3px solid var(--bad)}
-.tag{display:inline-block;padding:2px 8px;border-radius:99px;border:1px solid var(--line);font-size:13px;margin:2px 4px 2px 0}
+.tabs{display:flex;gap:8px;margin:6px 0 10px}.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}.stat .card{margin:0;text-align:center}.stat b{font-size:26px;display:block}.row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:6px 0}.track{height:9px;background:var(--line);border-radius:9px;overflow:hidden}.track i{display:block;height:100%;background:var(--pri)}.sub{font-size:13px;color:var(--mute)}.tag{display:inline-block;padding:2px 8px;border-radius:99px;border:1px solid var(--line);font-size:13px;margin:2px 4px 2px 0}
 </style></head><body><main>
 <h1>NEXA — Modération</h1>
 <div id="login" class="card"><label for="tok">Jeton administrateur</label><input id="tok" type="password" autocomplete="off"><button id="go">Entrer</button><p id="err" class="mute"></p></div>
-<div id="app" hidden></div>
+<div id="app" hidden><div class="tabs"><button data-tab="mod">Modération</button><button class="alt" data-tab="stats">Statistiques</button></div><div id="mod"></div><div id="stats" hidden></div></div>
 </main>
 <script>
 let TOKEN='';const $=id=>document.getElementById(id);
@@ -21,7 +21,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 async function api(m,p){const r=await fetch(p,{method:m,headers:{'X-Admin-Token':TOKEN}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||r.status);return d}
 async function load(){
   const d=await api('GET','/admin/overview');const bk=await api('GET','/admin/backups');$('login').hidden=true;$('app').hidden=false;
-  $('app').innerHTML=`<div class="card"><b>Sauvegardes</b> <span class="mute">· base : ${(bk.dbBytes/1048576).toFixed(1)} Mo</span><p class="mute">${bk.backups.length?'Dernière sauvegarde automatique : '+esc(bk.backups[0].date):'Aucune sauvegarde automatique pour le moment.'}</p><button data-a="backup-now">Créer une sauvegarde</button><button class="alt" data-a="backup-dl">Télécharger une copie de la base</button><p class="mute" style="font-size:13px">Conserve une copie sur ton ordinateur : si l'hébergement efface ses fichiers, c'est ta protection.</p></div><p class="mute">${d.stats.users} comptes · ${d.stats.suspended} suspendus · ${d.stats.openReports} signalements ouverts</p>
+  $('mod').innerHTML=`<div class="card"><b>Sauvegardes</b> <span class="mute">· base : ${(bk.dbBytes/1048576).toFixed(1)} Mo</span><p class="mute">${bk.backups.length?'Dernière sauvegarde automatique : '+esc(bk.backups[0].date):'Aucune sauvegarde automatique pour le moment.'}</p><button data-a="backup-now">Créer une sauvegarde</button><button class="alt" data-a="backup-dl">Télécharger une copie de la base</button><p class="mute" style="font-size:13px">Conserve une copie sur ton ordinateur : si l'hébergement efface ses fichiers, c'est ta protection.</p></div><p class="mute">${d.stats.users} comptes · ${d.stats.suspended} suspendus · ${d.stats.openReports} signalements ouverts</p>
   <h2>Profils signalés</h2>${d.reported.length?d.reported.map(u=>`<div class="card"><b>${esc(u.name)}, ${u.age}</b> · ${esc(u.city)} · <span class="mute">${esc(u.phone)}</span> ${u.suspended?'<span class="tag" style="color:var(--bad)">SUSPENDU</span>':''}
   <div class="mute">${u.reporters} signaleur(s) différent(s)</div>${u.reports.map(r=>`<div><span class="tag">${esc(r.category)}</span>${esc(r.details||'')} <span class="mute">${esc(r.created_at)}${r.photo_id?' · photo #'+r.photo_id:''}</span></div>`).join('')}
   <div>${u.photos.map(p=>`<div class="ph ${p.hidden?'h':''}" data-p="${p.id}" title="photo #${p.id}${p.hidden?' (masquée)':''}"></div>`).join('')}</div>
@@ -30,8 +30,25 @@ async function load(){
   <h2>Demandes de recours</h2>${d.appeals.length?d.appeals.map(a=>`<div class="card"><b>${esc(a.name)}</b> <span class="mute">${esc(a.created_at)}</span><p>${esc(a.text)}</p><button data-a="unsuspend" data-id="${a.user_id}">Réactiver ce compte</button></div>`).join(''):'<p class="mute">Aucun recours.</p>'}`;
   document.querySelectorAll('[data-p]').forEach(async el=>{try{const r=await fetch('/admin/photos/'+el.dataset.p,{headers:{'X-Admin-Token':TOKEN}});el.style.backgroundImage=`url(${URL.createObjectURL(await r.blob())})`}catch(e){}});
 }
+
+async function loadStats(){
+  const d=await api('GET','/admin/stats');
+  const bar=(n,max)=>`<div class="track"><i style="width:${max?Math.round(n/max*100):0}%"></i></div>`;
+  const rows=(arr,fmt)=>{const m=Math.max(1,...arr.map(x=>x.n));return arr.map(x=>`<div><div class="row"><span>${esc(x.label)}</span><b>${fmt?fmt(x):x.n}</b></div>${bar(x.n,m)}</div>`).join('')};
+  const m=d.matching,c=d.connections,g=d.messages;
+  $('stats').innerHTML=`<p class="sub">Chiffres globaux, mis à jour à ${esc(d.generatedAt.slice(11,16))} UTC. Aucune réponse ni aucun message individuel n'est affiché.</p>
+  <div class="stat"><div class="card"><b>${d.users.total}</b>inscrits</div><div class="card"><b>${d.funnel[4].n}</b>tests terminés</div><div class="card"><b>${m.usersWithMatch}/${m.usersEvaluated}</b>avec un match</div><div class="card"><b>${c.accepted}</b>connexions acceptées</div><div class="card"><b>${g.total}</b>messages</div></div>
+  <div class="card"><b>Retour des utilisateurs</b><p class="sub">${d.retention.eligible} compte(s) vus au moins un jour avant aujourd'hui : <b>${d.retention.returned} sont revenus (${d.retention.rate} %)</b>. Actifs aujourd'hui : ${d.retention.activeToday} · sur 7 jours : ${d.retention.active7d}.<br>Question du jour : ${d.retention.dailyToday} réponse(s) aujourd'hui, ${d.retention.dailyLast7d} sur 7 jours, ${d.retention.dailyParticipants} participant(s) au total.</p></div>
+  <div class="card"><b>Parcours d'inscription</b><p class="sub">${d.users.women} femmes · ${d.users.men} hommes${d.medianMinutes!==null?' · durée médiane du test : '+d.medianMinutes+' min':''}</p>${rows(d.funnel,x=>x.n+' ('+x.pct+' %)')}</div>
+  <div class="card"><b>Où les gens s'arrêtent</b><p class="sub">Dernier thème atteint par ceux qui n'ont pas terminé (${d.neverStarted} inscrit(s) n'ont jamais commencé). Une barre haute = un thème qui fait décrocher.</p>${rows(d.dropoff)}</div>
+  <div class="card"><b>Compatibilités</b><p class="sub">${m.eligiblePairs} paires possibles · ${m.aboveThreshold} au-dessus du seuil (${d.threshold} %) · ${m.blockedByDealbreaker} bloquées par un point rédhibitoire · ${m.averageMatches} match(s) par personne en moyenne${m.sampled?' · échantillon de 250 profils':''}</p>${rows(m.buckets)}</div>
+  <div class="card"><b>Connexions et messages</b><p class="sub">${c.sent} demande(s) : ${c.accepted} acceptée(s), ${c.rejected} refusée(s), ${c.pending} en attente · taux d'acceptation ${c.acceptanceRate} %<br>${g.conversations} conversation(s) : ${g.started} commencée(s), ${g.tenPlus} de 10 messages ou plus, ${g.limit} arrivée(s) à la limite gratuite · ${g.average} message(s) en moyenne</p></div>
+  <div class="card"><b>Mini-quiz fun</b>${d.fun.map(f=>`<p style="margin:12px 0 4px">${f.emoji} <b>${esc(f.title)}</b> <span class="sub">(${f.total} réponse(s))</span></p>${rows(f.options)}`).join('')}</div>
+  <div class="card"><b>Villes</b>${rows(d.cities)}<p class="sub">${d.users.premium} compte(s) Premium · ${d.users.suspended} suspendu(s) · ${d.moderation.openReports} signalement(s) ouvert(s) · ${d.moderation.blocks} blocage(s)</p></div>`;
+}
 $('go').onclick=async()=>{TOKEN=$('tok').value.trim();try{await load()}catch(e){$('err').textContent=e.message}};
-document.addEventListener('click',async e=>{const b=e.target.closest('[data-a]');if(!b)return;const id=b.dataset.id,a=b.dataset.a;
+document.addEventListener('click',async e=>{
+  const tb=e.target.closest('[data-tab]');if(tb){const st=tb.dataset.tab==='stats';$('mod').hidden=st;$('stats').hidden=!st;document.querySelectorAll('[data-tab]').forEach(b=>b.className=b===tb?'':'alt');if(st){try{await loadStats()}catch(x){alert(x.message)}}return}const b=e.target.closest('[data-a]');if(!b)return;const id=b.dataset.id,a=b.dataset.a;
   if(a==='backup-dl'){try{const r=await fetch('/admin/backup',{headers:{'X-Admin-Token':TOKEN}});if(!r.ok)throw new Error(r.status);const u=URL.createObjectURL(await r.blob());const l=document.createElement('a');l.href=u;l.download='nexa-sauvegarde-'+new Date().toISOString().slice(0,10)+'.db';l.click();setTimeout(()=>URL.revokeObjectURL(u),5000)}catch(x){alert('Échec du téléchargement : '+x.message)}return}
   if(a==='backup-now'){try{await api('POST','/admin/backups');await load()}catch(x){alert(x.message)}return}
   const map={suspend:['POST',`/admin/users/${id}/suspend`,'Suspendre ce compte ?'],unsuspend:['POST',`/admin/users/${id}/unsuspend`],dismiss:['POST',`/admin/users/${id}/dismiss`],'hide-photo':['POST',`/admin/photos/${id}/hide`],'show-photo':['POST',`/admin/photos/${id}/show`],'del-photo':['DELETE',`/admin/photos/${id}`,'Supprimer définitivement cette photo ?']};

@@ -7,7 +7,8 @@ import { openDb } from './db.js';
 import { createBackup, listBackups, pruneBackups } from './backup.js';
 import { normalizePhone, passwordProblem, makeLimiter, genCode, hashCode, sendSms } from './security.js';
 import { activeQuestions } from './questions.js';
-import { interludes, funProfile } from './interludes.js';
+import { interludes, funProfile, FUN_IDS, sharedFun } from './interludes.js';
+import { DAILY, DAILY_COUNT } from './daily_questions.js';
 import { QUESTIONS_VERSION, ANSWER_MAP } from './answer_map.js';
 import {
   buildTraits, computeMatch, isComplete, validateAnswers, demoAnswerSets,
@@ -17,6 +18,15 @@ import {
 export const FREE_MESSAGES = 50;
 export const FREE_VISIBLE = 3;
 export const MAX_PHOTOS = 3;
+// Fichiers statiques publics de l'appli installable (rien de secret ici).
+const STATIC_FILES = {
+  '/manifest.webmanifest': ['application/manifest+json; charset=utf-8', 'no-cache'],
+  '/sw.js': ['text/javascript; charset=utf-8', 'no-cache'],
+  '/icon-192.png': ['image/png', 'public, max-age=86400'],
+  '/icon-512.png': ['image/png', 'public, max-age=86400'],
+  '/icon-maskable-512.png': ['image/png', 'public, max-age=86400'],
+  '/apple-touch-icon.png': ['image/png', 'public, max-age=86400'],
+};
 export const REPORT_CATEGORIES = {
   faux_profil: 'Faux profil ou photos d\'une autre personne',
   harcelement: 'Harcèlement ou insultes',
@@ -48,7 +58,7 @@ const bad = (m) => new HttpError(400, m);
 export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo = process.env.NEXA_DEMO === '1', fakePayment = process.env.NEXA_PAYMENT !== 'off', secret,
   threshold = Number(process.env.NEXA_THRESHOLD || MATCH_THRESHOLD), anyone = process.env.NEXA_ANYONE === '1',
   devCodes = process.env.NEXA_DEV_CODES === '1', smsProvider = process.env.NEXA_SMS || 'console', msgPerMin = Number(process.env.NEXA_MSG_PER_MIN || 20),
-  requirePhoto = process.env.NEXA_REQUIRE_PHOTO === '1',
+  requirePhoto = process.env.NEXA_REQUIRE_PHOTO === '1', clock = () => Date.now(),
   adminToken = process.env.NEXA_ADMIN_TOKEN || '', backupDir, backupKeep = Number(process.env.NEXA_BACKUP_KEEP || 7), reportThreshold = Number(process.env.NEXA_REPORT_THRESHOLD || 3) } = {}) {
   const db = openDb(dbFile);
   const BACKUP_DIR = backupDir || process.env.NEXA_BACKUP_DIR || (dbFile === ':memory:' ? null : path.join(path.dirname(dbFile), 'backups'));
@@ -119,6 +129,38 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
     }
     out.sort((a, b) => b.score - a.score);
     return out.slice(0, me.premium ? PREMIUM_LIMIT : FREE_LIMIT);
+  }
+
+
+  // ------------------------------------------------------------ jours, activité, question du jour
+  const dayNumber = () => Math.floor((clock() + 3600000) / 86400000); // jour calendaire en Tunisie (UTC+1)
+  const dailyIndex = (d) => (d * 17) % DAILY_COUNT;                    // 17 est premier avec 60 : aucune répétition pendant 60 jours
+  const seenDay = new Map();
+  const markActive = (uid) => {
+    const d = dayNumber();
+    if (seenDay.get(uid) === d) return;
+    run('INSERT OR IGNORE INTO user_days (user_id, day) VALUES (?, ?)', uid, d);
+    seenDay.set(uid, d);
+  };
+
+  function dailyPayload(me) {
+    const d = dayNumber(), idx = dailyIndex(d), [text, options] = DAILY[idx];
+    const mine = one('SELECT choice FROM daily_answers WHERE user_id = ? AND day = ?', me.id, d);
+    const out = { day: d, id: idx, text, options, answered: mine ? mine.choice : null, results: null };
+    if (!mine) return out; // on ne montre rien des autres tant qu'on n'a pas répondu
+    const visible = matchesFor(me).filter((_, i) => me.premium || i < FREE_VISIBLE);
+    const matches = [];
+    for (const m of visible) {
+      const a = one('SELECT choice FROM daily_answers WHERE user_id = ? AND day = ?', m.user.id, d);
+      if (!a) continue;
+      const conn = one("SELECT id FROM connections WHERE status = 'accepted' AND ((from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?))", me.id, m.user.id, m.user.id, me.id);
+      matches.push({ user: pub(m.user), choice: a.choice, same: a.choice === mine.choice, connectionId: conn ? conn.id : null });
+    }
+    const rows = q('SELECT choice, COUNT(*) n FROM daily_answers WHERE day = ? GROUP BY choice', d);
+    const total = rows.reduce((t, r) => t + r.n, 0);
+    const distribution = total >= 5 ? options.map((_, i) => Math.round((100 * ((rows.find((r) => r.choice === i) || { n: 0 }).n)) / total)) : null;
+    out.results = { matches, total, distribution };
+    return out;
   }
 
   function spawnDemo(me) {
@@ -284,7 +326,8 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
     try {
       for (const [qid, sel] of Object.entries(v.answers)) up.run(user.id, Number(qid), JSON.stringify(sel));
       const all = answersOf(user.id);
-      run('UPDATE users SET completed = ? WHERE id = ?', isComplete(all) ? 1 : 0, user.id);
+      const done = isComplete(all) ? 1 : 0;
+      run("UPDATE users SET completed = ?, completed_at = CASE WHEN ? = 1 AND completed_at IS NULL THEN datetime('now') ELSE completed_at END WHERE id = ?", done, done, user.id);
       db.exec('COMMIT');
     } catch (e) { db.exec('ROLLBACK'); throw e; }
     const all = answersOf(user.id);
@@ -400,6 +443,53 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
     if (demo && other.is_demo) run('INSERT INTO messages (connection_id, sender_id, text) VALUES (?,?,?)', c.id, otherId, DEMO_REPLIES[1 + (n % (DEMO_REPLIES.length - 1))]);
     else notify(otherId, `Nouveau message de ${user.name}.`);
     return [201, { id: Number(r.lastInsertRowid) }];
+  });
+
+
+  // ----- Question du jour -----
+  route('GET', '/daily', ({ user }) => dailyPayload(user));
+  route('POST', '/daily', ({ user, body }) => {
+    const d = dayNumber(), idx = dailyIndex(d), n = DAILY[idx][1].length;
+    const c = body.choice;
+    if (!Number.isInteger(c) || c < 0 || c >= n) throw bad('Choix invalide');
+    if (!one('SELECT 1 x FROM daily_answers WHERE user_id = ? AND day = ?', user.id, d)) {
+      run('INSERT INTO daily_answers (user_id, day, qid, choice) VALUES (?,?,?,?)', user.id, d, idx, c);
+      // Prévenir (sans révéler la réponse) les matchs qui me voient et n'ont pas encore répondu.
+      for (const m of matchesFor(user).filter((_, i) => user.premium || i < FREE_VISIBLE)) {
+        if (one('SELECT 1 x FROM daily_answers WHERE user_id = ? AND day = ?', m.user.id, d)) continue;
+        if (visibleOwners(m.user).has(user.id)) notify(m.user.id, `${user.name} a répondu à la question du jour. Réponds pour voir sa réponse !`);
+      }
+    }
+    return dailyPayload(user);
+  });
+
+  // ----- Brise-glaces du chat -----
+  const ICE = {
+    101: (x) => `Vous rêvez tous les deux de ${x} ! Tu irais où en premier ?`,
+    102: (x) => `On a choisi la même couleur : ${x} 😄 Elle te rappelle quoi ?`,
+    104: (x) => `Même saison préférée : ${x} ! Ton plus beau souvenir de cette saison ?`,
+    105: (x) => `On ferait pareil avec un gros lot (${x}). Tu ferais ça en premier ?`,
+    106: (x) => `Même super-pouvoir : ${x} ! Tu l'utiliserais pour quoi en premier ?`,
+    107: (x) => `Soirée parfaite pour nous deux : ${x}. Ton dernier coup de cœur dans ce genre ?`,
+    108: (x) => `Même dîner idéal : ${x} 😋 Tu as une adresse à me conseiller ?`,
+  };
+  route('GET', '/conversations/:id/icebreakers', ({ user, params }) => {
+    const c = connectionFor(user.id, Number(params.id));
+    if (c.status !== 'accepted') throw new HttpError(403, 'Conversation non ouverte');
+    const otherId = c.from_id === user.id ? c.to_id : c.from_id;
+    const shared = sharedFun(answersOf(user.id), answersOf(otherId));
+    const out = shared.filter((x) => ICE[x.id]).slice(0, 3).map((x) => ICE[x.id](x.label));
+    const d = dayNumber();
+    const a = one('SELECT choice FROM daily_answers WHERE user_id = ? AND day = ?', user.id, d), b = one('SELECT choice FROM daily_answers WHERE user_id = ? AND day = ?', otherId, d);
+    if (a && b) out.push(a.choice === b.choice ? `On a répondu pareil à la question du jour (« ${DAILY[dailyIndex(d)][0]} ») 😄` : `Question du jour : « ${DAILY[dailyIndex(d)][0]} » Moi j'ai répondu ${DAILY[dailyIndex(d)][1][a.choice]}, et toi ?`);
+    const generic = [
+      'Salut ! NEXA nous a matchés 😊 Qu\'est-ce qui t\'a le plus surpris dans le test ?',
+      'Ta ville préférée en Tunisie, et pourquoi ?',
+      'Un dimanche parfait pour toi, ça ressemble à quoi ?',
+      'Quel est le dernier endroit où tu as passé un super moment ?',
+    ];
+    for (const g of generic) if (out.length < 4) out.push(g);
+    return { suggestions: out.slice(0, 4) };
   });
 
   route('GET', '/notifications', ({ user }) => ({
@@ -547,6 +637,104 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
   adm('POST', '/admin/photos/:id/hide', ({ params }) => { run('UPDATE photos SET hidden = 1 WHERE id = ?', Number(params.id)); log('hide-photo', 'photo:' + params.id); return { hidden: true }; });
   adm('POST', '/admin/photos/:id/show', ({ params }) => { run('UPDATE photos SET hidden = 0 WHERE id = ?', Number(params.id)); log('show-photo', 'photo:' + params.id); return { hidden: false }; });
   adm('DELETE', '/admin/photos/:id', ({ params }) => { run('DELETE FROM photos WHERE id = ?', Number(params.id)); log('delete-photo', 'photo:' + params.id); return { deleted: true }; });
+
+  // ----- Statistiques globales (aucune réponse ni aucun message individuel n'est lu ici) -----
+  adm('GET', '/admin/stats', () => {
+    const users = q('SELECT id, gender, looking_for, city, premium, verified, completed, suspended, created_at, completed_at FROM users WHERE is_demo = 0');
+    const photoSet = new Set(q('SELECT DISTINCT user_id FROM photos').map((r) => r.user_id));
+    const lastCore = new Map(), coreCount = new Map();
+    for (const r of q('SELECT user_id, question_id FROM answers WHERE question_id <= 50')) {
+      lastCore.set(r.user_id, Math.max(lastCore.get(r.user_id) || 0, r.question_id));
+      coreCount.set(r.user_id, (coreCount.get(r.user_id) || 0) + 1);
+    }
+    const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+    const n = users.length;
+    const verified = users.filter((u) => u.verified).length;
+    const withPhoto = users.filter((u) => photoSet.has(u.id)).length;
+    const started = users.filter((u) => coreCount.get(u.id)).length;
+    const completed = users.filter((u) => u.completed).length;
+    const funnel = [
+      { label: 'Inscrits', n }, { label: 'Numéro vérifié', n: verified }, { label: 'Avec photo', n: withPhoto },
+      { label: 'Test commencé', n: started }, { label: 'Test terminé', n: completed },
+    ].map((x) => ({ ...x, pct: pct(x.n, n) }));
+
+    // Où les gens s'arrêtent : thème de la dernière question répondue (réponses envoyées à la fin de chaque thème)
+    const bounds = [8, 16, 22, 29, 36, 41, 46, 50], names = ['Vision du couple', 'Personnalité', 'Communication et conflits', 'Mode de vie', 'Famille, mariage et enfants', 'Projets et ambitions', "Centres d'intérêt", 'Valeurs et limites'];
+    const dropoff = names.map((label) => ({ label, n: 0 }));
+    let neverStarted = 0;
+    for (const u of users.filter((x) => !x.completed)) {
+      const last = lastCore.get(u.id);
+      if (!last) { neverStarted++; continue; }
+      dropoff[Math.max(0, bounds.findIndex((b) => last <= b))].n++;
+    }
+    const mins = users.filter((u) => u.completed_at).map((u) => (new Date(u.completed_at.replace(' ', 'T') + 'Z') - new Date(u.created_at.replace(' ', 'T') + 'Z')) / 60000).filter((m) => m >= 0).sort((a, b) => a - b);
+    const medianMinutes = mins.length ? Math.round(mins[Math.floor(mins.length / 2)] * 10) / 10 : null;
+
+    // Compatibilités (calcul sur les paires éligibles, 250 profils au maximum)
+    const pool = users.filter((u) => u.completed && !u.suspended).slice(0, 250);
+    const ans = new Map(pool.map((u) => [u.id, answersOf(u.id)]));
+    const buckets = [0, 40, 50, 60, 70, 75, 80, 90].map((from, i, a) => ({ label: i === a.length - 1 ? `${from}-100` : `${from}-${a[i + 1] - 1}`, from, n: 0 }));
+    let pairs = 0, blocked = 0, aboveThreshold = 0;
+    const perUser = new Map(pool.map((u) => [u.id, 0]));
+    for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) {
+      const a = pool[i], b = pool[j];
+      const ok = anyone || (a.looking_for === (b.gender === 'Homme' ? 'Un homme' : 'Une femme') && b.looking_for === (a.gender === 'Homme' ? 'Un homme' : 'Une femme'));
+      if (!ok) continue;
+      pairs++;
+      const r = computeMatch(ans.get(a.id), ans.get(b.id));
+      if (r.blocks.length) { blocked++; continue; }
+      for (let k = buckets.length - 1; k >= 0; k--) if (r.score >= buckets[k].from) { buckets[k].n++; break; }
+      if (r.score >= threshold) { aboveThreshold++; perUser.set(a.id, perUser.get(a.id) + 1); perUser.set(b.id, perUser.get(b.id) + 1); }
+    }
+    const counts = [...perUser.values()];
+    const withMatch = counts.filter((c) => c > 0).length;
+
+    const cn = (sql, ...p) => one(sql, ...p).n;
+    const conns = { sent: cn('SELECT COUNT(*) n FROM connections'), accepted: cn("SELECT COUNT(*) n FROM connections WHERE status = 'accepted'"), pending: cn("SELECT COUNT(*) n FROM connections WHERE status = 'pending'"), rejected: cn("SELECT COUNT(*) n FROM connections WHERE status = 'rejected'") };
+    const perConv = q("SELECT c.id, COUNT(m.id) AS n FROM connections c LEFT JOIN messages m ON m.connection_id = c.id WHERE c.status = 'accepted' GROUP BY c.id").map((r) => r.n);
+    const messages = {
+      total: cn('SELECT COUNT(*) n FROM messages'), conversations: perConv.length,
+      started: perConv.filter((x) => x > 0).length, tenPlus: perConv.filter((x) => x >= 10).length, limit: perConv.filter((x) => x >= FREE_MESSAGES).length,
+      average: perConv.length ? Math.round((perConv.reduce((t, x) => t + x, 0) / perConv.length) * 10) / 10 : 0,
+    };
+
+    // Goûts des mini-quiz (comptes uniquement)
+    const fun = interludes.map((it) => {
+      const rows = q('SELECT selected FROM answers WHERE question_id = ? AND user_id IN (SELECT id FROM users WHERE is_demo = 0)', it.id);
+      const c = it.options.map((o) => ({ label: o.label, n: 0 }));
+      for (const r of rows) { const i = JSON.parse(r.selected)[0]; if (c[i]) c[i].n++; }
+      return { id: it.id, title: it.title, emoji: it.emoji, total: rows.length, options: c };
+    });
+
+    return {
+      generatedAt: new Date().toISOString(), threshold,
+      users: { total: n, men: users.filter((u) => u.gender === 'Homme').length, women: users.filter((u) => u.gender === 'Femme').length, premium: users.filter((u) => u.premium).length, suspended: users.filter((u) => u.suspended).length },
+      cities: Object.entries(users.reduce((m, u) => ((m[u.city] = (m[u.city] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]).map(([label, n2]) => ({ label, n: n2 })),
+      funnel, dropoff, neverStarted, medianMinutes,
+      matching: { sampled: users.filter((u) => u.completed && !u.suspended).length > 250, eligiblePairs: pairs, blockedByDealbreaker: blocked, aboveThreshold, usersWithMatch: withMatch, usersEvaluated: pool.length, averageMatches: pool.length ? Math.round((counts.reduce((t, x) => t + x, 0) / pool.length) * 10) / 10 : 0, buckets: buckets.map(({ label, n: bn }) => ({ label, n: bn })) },
+      connections: { ...conns, acceptanceRate: pct(conns.accepted, conns.accepted + conns.rejected) },
+      messages, fun,
+      retention: (() => {
+        const today = dayNumber();
+        const first = new Map(q('SELECT user_id, MIN(day) d FROM user_days GROUP BY user_id').map((r) => [r.user_id, r.d]));
+        const last = new Map(q('SELECT user_id, MAX(day) d FROM user_days GROUP BY user_id').map((r) => [r.user_id, r.d]));
+        const real = new Set(users.map((u) => u.id));
+        const ids = [...first.keys()].filter((id) => real.has(id));
+        const eligible = ids.filter((id) => first.get(id) < today);
+        const returned = eligible.filter((id) => last.get(id) > first.get(id));
+        const dq = (sql, ...p) => one(sql, ...p).n;
+        return {
+          eligible: eligible.length, returned: returned.length, rate: pct(returned.length, eligible.length),
+          activeToday: ids.filter((id) => last.get(id) === today).length,
+          active7d: ids.filter((id) => last.get(id) > today - 7).length,
+          dailyToday: dq('SELECT COUNT(*) n FROM daily_answers WHERE day = ?', today),
+          dailyLast7d: dq('SELECT COUNT(*) n FROM daily_answers WHERE day > ?', today - 7),
+          dailyParticipants: dq('SELECT COUNT(DISTINCT user_id) n FROM daily_answers'),
+        };
+      })(),
+      moderation: { openReports: cn("SELECT COUNT(*) n FROM reports WHERE status = 'open'"), blocks: cn('SELECT COUNT(*) n FROM blocks') },
+    };
+  });
   adm('GET', '/admin/backups', () => ({ dir: !!BACKUP_DIR, backups: BACKUP_DIR ? listBackups(BACKUP_DIR) : [], dbBytes: one('SELECT page_count * page_size AS b FROM pragma_page_count(), pragma_page_size()').b }));
   adm('POST', '/admin/backups', () => { if (!BACKUP_DIR) throw new HttpError(501, 'Pas de dossier de sauvegarde (base en mémoire)'); const f = createBackup(db, BACKUP_DIR); pruneBackups(BACKUP_DIR, backupKeep); log('backup', path.basename(f)); return { created: path.basename(f) }; });
   adm('GET', '/admin/backup', () => {
@@ -577,6 +765,11 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
         const raw = Buffer.concat(chunks).toString();
         if (raw) { try { body = JSON.parse(raw); } catch { throw bad('JSON invalide'); } }
       }
+      if (req.method === 'GET' && STATIC_FILES[url.pathname]) {
+        const [type, cache] = STATIC_FILES[url.pathname];
+        res.writeHead(200, { 'Content-Type': type, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff', ...(url.pathname === '/sw.js' ? { 'Service-Worker-Allowed': '/' } : {}) });
+        return res.end(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', url.pathname.slice(1))));
+      }
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
         return res.end(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'index.html')));
@@ -594,6 +787,7 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
         const p = verify(t);
         user = p && one('SELECT * FROM users WHERE id = ?', p.uid);
         if (!user) throw new HttpError(401, 'Non authentifié');
+        markActive(user.id);
         if (user.suspended && !r.open) throw new HttpError(403, 'Ton compte est suspendu.', { code: 'suspended' });
         if (!r.open && !user.verified) throw new HttpError(403, 'Vérifie ton numéro de téléphone pour continuer', { code: 'phone_unverified' });
       }

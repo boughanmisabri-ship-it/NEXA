@@ -2,6 +2,10 @@
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NEXA</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1c5fd6" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0b1424" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="NEXA">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Figtree:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -56,6 +60,7 @@ nav button[aria-current="page"]{color:var(--pri)}
 @media (prefers-reduced-motion:no-preference){.spin{animation:s 1s linear infinite}}
 .spin{width:44px;height:44px;border:5px solid var(--line);border-top-color:var(--pri);border-radius:50%;margin:0 auto 18px}
 @keyframes s{to{transform:rotate(360deg)}}
+.chips{display:flex;flex-direction:column;gap:8px;margin:8px 0}.chip{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:14px;padding:10px 14px;text-align:left;font-size:14px;line-height:1.35}.daily{border-color:var(--pri)}.mini{display:flex;align-items:center;gap:10px;margin:8px 0}
 .cards2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0}.fcard{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:16px;padding:16px 8px;text-align:center}.fcard[aria-pressed="true"]{border-color:var(--pri);background:var(--soft);font-weight:700}.swatches{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}.sw{width:58px;height:58px;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1.5px var(--line)}.sw[aria-pressed="true"]{border-color:var(--ink);transform:scale(1.12)}.opt:disabled,.fcard:disabled,.sw:disabled{cursor:default}
 .av{background-size:cover;background-position:center;overflow:hidden}.av.has{color:transparent}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}.ph{position:relative;aspect-ratio:3/4;border-radius:14px;background:var(--soft) center/cover no-repeat;overflow:hidden}.ph button{position:absolute;top:6px;right:6px;border:0;border-radius:50%;width:30px;height:30px;background:rgba(0,0,0,.65);color:#fff;font-size:18px;line-height:1}.add{display:flex;align-items:center;justify-content:center;aspect-ratio:3/4;border:2px dashed var(--line);border-radius:14px;color:var(--mute);font-size:32px;cursor:pointer}
 </style>
@@ -72,8 +77,8 @@ const strength=v=>v>=90?'très forte':v>=80?'forte':v>=70?'bonne':'moyenne';
 const $app=document.getElementById('app');
 const $=id=>document.getElementById(id);
 
-let S={ansVersion:1,qVersion:2,answerMap:{},quizNote:'',draft:null,recovered:false,notice:'',fi:0,interludes:[],fun:[],report:null,photoAsked:false,needPhoto:false,devCode:'',info:'',th:0,token:null,screen:'boot',mode:'register',tab:'matches',user:null,traits:{},questions:[],answers:{},qi:0,matches:[],threshold:80,incoming:[],convs:[],notifs:[],detail:null,det:null,chat:null,sheet:false,error:'',busy:false};
-let CH={id:null,person:null,msgs:[],last:0,total:0,canSend:true,shown:true,timer:null};
+let S={daily:null,ansVersion:1,qVersion:2,answerMap:{},quizNote:'',draft:null,recovered:false,notice:'',fi:0,interludes:[],fun:[],report:null,photoAsked:false,needPhoto:false,devCode:'',info:'',th:0,token:null,screen:'boot',mode:'register',tab:'matches',user:null,traits:{},questions:[],answers:{},qi:0,matches:[],threshold:80,incoming:[],convs:[],notifs:[],detail:null,det:null,chat:null,sheet:false,error:'',busy:false};
+let CH={ice:[],id:null,person:null,msgs:[],last:0,total:0,canSend:true,shown:true,timer:null};
 
 function save(){try{localStorage.setItem('nexa-live',JSON.stringify({token:S.token,answers:S.answers,qi:S.qi,draft:S.draft,v:S.ansVersion}))}catch(e){}}
 function restore(){try{const d=JSON.parse(localStorage.getItem('nexa-live')||'null');if(d){S.token=d.token;S.answers=d.answers||{};S.qi=d.qi||0;S.draft=d.draft||null;S.ansVersion=d.v||1}}catch(e){}}
@@ -95,7 +100,7 @@ const fail=e=>{if(e.code==='session_lost'){closeChat();S.user=null;S.screen='wel
   S.error=e.message==='Failed to fetch'?'Connexion impossible au serveur.':e.message;S.busy=false;render()};
 
 async function loadAll(){
-  const [m,i,c,n]=await Promise.all([api('GET','/matches').catch(e=>{if(e.code==='photo_required')return{matches:[],threshold:S.threshold,needPhoto:true};throw e}),api('GET','/connections/incoming'),api('GET','/conversations'),api('GET','/notifications')]);
+  const [m,i,c,n,dq]=await Promise.all([api('GET','/matches').catch(e=>{if(e.code==='photo_required')return{matches:[],threshold:S.threshold,needPhoto:true};throw e}),api('GET','/connections/incoming'),api('GET','/conversations'),api('GET','/notifications'),api('GET','/daily').catch(()=>null)]);S.daily=dq;
   S.matches=m.matches;S.threshold=m.threshold;S.needPhoto=!!m.needPhoto;S.incoming=i.requests;S.convs=c.conversations;S.notifs=n.notifications;
 }
 async function sendCode(){
@@ -116,6 +121,8 @@ function applyMap(ans){
   return out}
 const firstUnanswered=()=>S.questions.findIndex(q=>q.key!=='dealbreakers'&&!(S.answers[q.id]&&S.answers[q.id].length));
 function resumeQuiz(note){const k=firstUnanswered();if(k>=0){S.qi=k;S.th=themeOf(S.questions[k].id);if(note)S.quizNote=note}}
+/* enregistre la progression sur le serveur à la fin de chaque thème (reprise possible, statistiques d'abandon) */
+function syncAnswers(){api('POST','/answers',{answers:S.answers}).catch(e=>{if(e.code==='session_lost')fail(e)})}
 const allAnswered=()=>S.questions.every(q=>q.key==='dealbreakers'||(S.answers[q.id]&&S.answers[q.id].length));
 async function submitAll(){
   S.screen='analysis';S.error='';render();
@@ -164,9 +171,26 @@ async function uploadPhoto(dataUrl){const r=await api('POST','/photos',{image:da
 function photosEditor(){const ph=S.user.photos||[];return `<div class="grid">${ph.map(id=>`<div class="ph" data-pid="${id}"><button data-a="del-photo" data-id="${id}" aria-label="Supprimer la photo">×</button></div>`).join('')}${ph.length<3?'<label class="add" for="f-photo" aria-label="Ajouter une photo">＋</label>':''}</div><input id="f-photo" type="file" accept="image/jpeg,image/png,image/webp" hidden>${err()}`}
 function viewPhoto(){return `<h2>Ajoute ta photo</h2><p class="mute">Une vraie photo de toi (visage visible) rassure les autres et augmente tes chances. Tu peux en mettre jusqu'à 3. Seules les personnes compatibles avec toi pourront la voir.</p>${photosEditor()}<div style="height:10px"></div><button class="btn" data-a="photo-next">${(S.user.photos||[]).length?'Continuer':'Plus tard'}</button>`}
 
+
+/* ---------- installation sur l'écran d'accueil (appli web installable) ---------- */
+let DEFERRED=null;
+const isStandalone=()=>{try{return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||(typeof navigator!=='undefined'&&navigator.standalone===true)}catch(e){return false}};
+const isIOS=()=>typeof navigator!=='undefined'&&/iphone|ipad|ipod/i.test(navigator.userAgent||'');
+function installCard(){
+  if(isStandalone())return '';
+  const how=DEFERRED?'<button class="btn alt" data-a="install">Installer NEXA</button>'
+    :isIOS()?'<p style="margin:0">Sur iPhone : appuie sur <b>Partager</b> (le carré avec une flèche), puis sur <b>« Sur l\'écran d\'accueil »</b>.</p>'
+    :'<p style="margin:0">Dans le menu <b>⋮</b> de ton navigateur, choisis <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.</p>';
+  return `<div class="wall" style="text-align:left;margin:16px 0"><b>📲 Installe NEXA sur ton téléphone</b><p class="mute" style="margin:6px 0 10px">Une icône sur ton écran d'accueil, en plein écran, comme une vraie appli.</p>${how}</div>`}
+if(typeof window!=='undefined'&&window.addEventListener){
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();DEFERRED=e;if(S.screen==='welcome'||S.tab==='me')render()});
+  window.addEventListener('appinstalled',()=>{DEFERRED=null;render()});
+}
+if(typeof navigator!=='undefined'&&navigator.serviceWorker)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
 /* ---------- vues ---------- */
 const err=()=>S.error?`<p class="warn" role="alert">${esc(S.error)}</p>`:'';
-function viewWelcome(){return `<section class="hero">${S.notice?`<div class="wall" style="text-align:left">${esc(S.notice)}</div>`:''}<h1 class="brand">NEXA</h1><h2>Ton partenaire qui te convient le mieux</h2><p class="mute">NEXA compare tes réponses à celles des autres pour te proposer les personnes les plus compatibles avec toi.</p><button class="btn" data-a="go-register">Commencer</button><button class="link" data-a="go-login">J'ai déjà un compte</button><p class="note">Version test : tes réponses servent uniquement à calculer la compatibilité.</p></section>`}
+function viewWelcome(){return `<section class="hero">${S.notice?`<div class="wall" style="text-align:left">${esc(S.notice)}</div>`:''}<h1 class="brand">NEXA</h1><h2>Ton partenaire qui te convient le mieux</h2><p class="mute">NEXA compare tes réponses à celles des autres pour te proposer les personnes les plus compatibles avec toi.</p><button class="btn" data-a="go-register">Commencer</button><button class="link" data-a="go-login">J'ai déjà un compte</button><p class="note">Version test : tes réponses servent uniquement à calculer la compatibilité.</p>${installCard()}</section>`}
 function viewLogin(){return `<h2>Connexion</h2><label for="f-phone">Numéro de téléphone</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel"><label for="f-pass">Mot de passe</label><input id="f-pass" type="password" autocomplete="current-password">${err()}<div style="height:18px"></div><button class="btn" data-a="login" ${S.busy?'disabled':''}>Se connecter</button><button class="link" data-a="go-welcome">Retour</button>`}
 function viewRegister(){return `<h2>Crée ton profil</h2>${S.notice?`<div class="wall" style="text-align:left">${esc(S.notice)}</div>`:''}
 <label for="f-phone">Numéro de téléphone (ex. 20123456 ou +21620123456)</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" value="${esc((S.draft||{}).phone||'')}">
@@ -225,8 +249,20 @@ function viewReport(){return `<div class="modal" data-a="close-report"><div clas
 function viewAnalysis(){return `<section class="hero" style="text-align:center"><div class="spin" aria-hidden="true"></div><h2>NEXA analyse ton profil…</h2><p class="mute">NEXA construit ton profil de compatibilité.</p>${err()}</section>`}
 function tabs(){const t=[['matches','Connexions'],['messages','Messages'],['notifs','Notifs'],['me','Profil']];const cur=S.chat!=null?'messages':S.detail!=null?'matches':S.tab;
 return `<nav aria-label="Navigation">${t.map(([k,l])=>`<button data-a="tab" data-t="${k}" ${cur===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav>`}
+
+function dailyCard(){
+  const d=S.daily;if(!d)return '';
+  const done=d.answered!==null&&d.answered!==undefined;
+  const opts=d.options.map((o,i)=>`<button class="opt" data-a="daily-pick" data-i="${i}" aria-pressed="${d.answered===i}" ${done?'disabled':''}>${esc(o)}</button>`).join('');
+  let res='';
+  if(done&&d.results){const r=d.results;
+    const list=r.matches.length?r.matches.map(m=>{const i=S.matches.findIndex(x=>x.user&&x.user.id===m.user.id);
+      const btn=m.connectionId?`<button class="btn alt" style="width:auto;padding:8px 12px" data-a="chat" data-id="${m.connectionId}" data-uid="${m.user.id}" data-name="${esc(m.user.name)}">Lui écrire</button>`:(i>=0?`<button class="btn alt" style="width:auto;padding:8px 12px" data-a="open" data-i="${i}">Voir le profil</button>`:'');
+      return `<div class="mini">${av(m.user,40,'0')}<span class="grow"><b>${esc(m.user.name)}</b> : ${esc(d.options[m.choice])}<br><span class="mute" style="font-size:13px">${m.same?'✅ Même réponse que toi':'Une autre réponse'}</span></span>${btn}</div>`}).join(''):'<p class="mute" style="margin:6px 0">Aucun de tes matchs n\'a encore répondu. Reviens plus tard !</p>';
+    res=`<div class="wall" style="text-align:left;margin-top:12px">${r.distribution?`<p style="margin:0 0 8px">${r.distribution[d.answered]} % des participants ont choisi comme toi.</p>`:''}${list}<p class="mute" style="font-size:12px;margin:8px 0 0">Une nouvelle question demain.</p></div>`}
+  return `<div class="card daily" style="display:block"><p class="sec" style="margin:0 0 4px">💡 Question du jour</p><h3 style="margin:0 0 10px;font-size:20px">${esc(d.text)}</h3>${opts}${done?res:'<p class="mute" style="font-size:13px;margin:4px 0 0">Réponds pour voir ce qu\'ont répondu tes matchs.</p>'}</div>`}
 function viewMatches(){const medals=['🥇','🥈','🥉','🔒','🔒'];
-return `<h2>Tes meilleures compatibilités</h2><p class="mute">Seuil minimum : ${S.threshold} %</p>${err()}
+return `${dailyCard()}<h2>Tes meilleures compatibilités</h2><p class="mute">Seuil minimum : ${S.threshold} %</p>${err()}
 ${S.incoming.length?`<h3 style="margin:16px 0 8px">Demandes reçues</h3>${S.incoming.map(r=>`<div class="card" style="display:block"><div style="display:flex;gap:12px;align-items:center">${av(r.user,46,'0')}<span><b>${esc(r.user.name)}, ${r.user.age}</b> · ${esc(r.user.city)}<br><span class="mute">Compatibilité : ${r.score} %</span></span></div><div class="row" style="margin-top:10px"><button class="btn" data-a="accept" data-id="${r.id}">Accepter</button><button class="btn alt" data-a="reject" data-id="${r.id}">Refuser</button></div></div>`).join('')}`:''}
 <div style="height:14px"></div>
 ${S.needPhoto?`<div class="wall"><b>Ajoute une photo pour voir tes compatibilités</b><p>Les profils sans photo ne sont pas affichés, pour garder NEXA fiable.</p><button class="btn" data-a="tab" data-t="me">Ajouter ma photo</button></div>`:S.matches.length?S.matches.map((m,i)=>`<button class="card" data-a="open" data-i="${i}"><span class="rank">${m.locked?'🔒':(medals[i]||'⭐')}</span>${m.locked?'':av(m.user,46,'0')}<span class="grow"><b>${m.locked?'Profil masqué':esc(m.user.name)+', '+m.user.age}</b><br><span class="mute">${m.locked?'Disponible avec NEXA Premium':esc(m.user.city)}</span></span><span class="score">${m.score} %</span></button>`).join(''):`<div class="wall">NEXA n'a pas encore trouvé la bonne personne. Il continue de chercher et te préviendra dès qu'un profil atteindra ${S.threshold} % de compatibilité. Invite tes amis à s'inscrire !</div>`}
@@ -245,10 +281,10 @@ ${err()}<div style="height:20px"></div>${cta}<div class="row" style="margin-top:
 function viewMessages(){return `<h2>Messages</h2><div style="height:12px"></div>${S.convs.length?S.convs.map(c=>`<button class="card" data-a="chat" data-id="${c.id}" data-uid="${c.user.id}">${av(c.user,46,'0')}<span class="grow"><b>${esc(c.user.name)} · ${c.score} %</b><br><span class="mute">${esc(c.lastMessage||'Dites-vous bonjour !')}</span></span></button>`).join(''):'<p class="mute">Aucune conversation pour le moment.</p>'}`}
 function viewNotifs(){return `<h2>Notifications</h2><div style="height:12px"></div>${S.notifs.length?S.notifs.map(n=>`<p class="card" style="display:block">✨ ${esc(n.text)}</p>`).join(''):'<p class="mute">Rien de nouveau.</p>'}`}
 function viewMe(){const u=S.user,t=S.traits||{};return `<h2>${esc(u.name)}, ${u.age}</h2><p class="mute">${esc(u.city)} · ${u.premium?'NEXA Premium actif':'Compte gratuit'}</p>
-<h3 style="margin:18px 0 4px">Mes photos</h3>${photosEditor()}<h3 style="margin:18px 0 4px">Ton profil fun</h3>${(S.fun||[]).map(f=>`<p style="margin:4px 0">${f.emoji} <b>${esc(f.label)}</b> <span class="mute">· ${esc(f.tag)}</span></p>`).join('')||'<p class="mute">Réponds aux pauses fun pour le voir.</p>'}<h3 style="margin:18px 0 4px">Ton profil NEXA</h3><p class="mute" style="font-size:14px">Préférences estimées à partir de tes réponses. Ce n'est pas un diagnostic psychologique.</p><div style="height:10px"></div>
+${installCard()}<h3 style="margin:18px 0 4px">Mes photos</h3>${photosEditor()}<h3 style="margin:18px 0 4px">Ton profil fun</h3>${(S.fun||[]).map(f=>`<p style="margin:4px 0">${f.emoji} <b>${esc(f.label)}</b> <span class="mute">· ${esc(f.tag)}</span></p>`).join('')||'<p class="mute">Réponds aux pauses fun pour le voir.</p>'}<h3 style="margin:18px 0 4px">Ton profil NEXA</h3><p class="mute" style="font-size:14px">Préférences estimées à partir de tes réponses. Ce n'est pas un diagnostic psychologique.</p><div style="height:10px"></div>
 ${Object.keys(AXIS_LABELS).filter(a=>t[a]!=null).map(a=>`<div class="dim">${AXIS_LABELS[a]} : ${t[a]}/100<div class="bar"><i style="width:${t[a]}%"></i></div></div>`).join('')}
 ${u.premium?'':'<button class="btn alt" data-a="premium">Découvrir NEXA Premium</button>'}<div style="height:8px"></div><button class="link" data-a="export">Télécharger mes données</button><button class="link" data-a="logout">Se déconnecter</button><button class="link" data-a="delete" style="color:var(--hot)">Supprimer mon compte</button>`}
-function viewChat(){CH.shown=CH.canSend;return `<button class="link" data-a="back" style="text-align:left;padding-left:0">← ${esc(CH.person?CH.person.name:'')}</button><p class="note" id="cnt"></p><div class="chat" id="msgs" aria-live="polite"></div>
+function viewChat(){CH.shown=CH.canSend;return `<button class="link" data-a="back" style="text-align:left;padding-left:0">← ${esc(CH.person?CH.person.name:'')}</button><p class="note" id="cnt"></p><div class="chat" id="msgs" aria-live="polite"></div><div class="chips" id="ice"></div>
 ${CH.canSend?`<form class="send" data-a="send"><input id="msg" maxlength="1000" placeholder="Écris un message…" aria-label="Message" autocomplete="off"><button class="btn" type="submit">Envoyer</button></form><div style="height:70px"></div>`:`<div class="wall"><b>Vous avez beaucoup de choses à vous dire ❤️</b><p>Passez en Premium pour continuer votre conversation.</p><button class="btn" data-a="premium">Passer à NEXA Premium</button></div>`}`}
 function viewSheet(){return `<div class="modal" data-a="close-sheet"><div class="sheet" role="dialog" aria-modal="true" aria-label="NEXA Premium"><h2>NEXA Premium</h2><div style="margin:14px 0">${['Voir toutes tes personnes compatibles','Voir tes 5 meilleurs scores','Messages illimités','Voir en détail pourquoi vous êtes compatibles','Nouvelles recommandations chaque semaine'].map(x=>`<p style="margin:6px 0">✅ ${x}</p>`).join('')}</div><button class="btn" data-a="go-premium">Activer Premium (test, sans paiement)</button><button class="link" data-a="close-sheet">Plus tard</button></div></div>`}
 
@@ -269,11 +305,12 @@ function paintChat(){const box=$('msgs');if(!box)return;
   const stick=window.innerHeight+window.scrollY>=document.body.scrollHeight-80;
   box.innerHTML=CH.msgs.map(m=>`<div class="b ${m.mine?'me':''}">${esc(m.text)}</div>`).join('');
   const c=$('cnt');if(c)c.textContent=(S.user&&S.user.premium)?'':`${CH.total}/${FREE_MSG} messages gratuits`;
+  const ic=$('ice');if(ic)ic.innerHTML=(CH.canSend&&CH.msgs.length<3&&CH.ice.length)?`<p class="mute" style="font-size:13px;margin:0">💬 Pour briser la glace :</p>`+CH.ice.map((t,i)=>`<button class="chip" data-a="ice" data-i="${i}">${esc(t)}</button>`).join(''):'';
   if(stick)window.scrollTo(0,document.body.scrollHeight);
 }
 async function pollChat(){if(CH.id==null)return;try{const r=await api('GET',`/conversations/${CH.id}/messages?after=${CH.last}`);
   if(r.messages.length){CH.msgs.push(...r.messages);CH.last=r.messages[r.messages.length-1].id}CH.total=r.total;CH.canSend=r.canSend;paintChat()}catch(e){}}
-function openChat(id,person){CH={id,person,msgs:[],last:0,total:0,canSend:true,shown:true,timer:null};S.chat=id;S.error='';render();pollChat();CH.timer=setInterval(pollChat,3000)}
+function openChat(id,person){api('GET',`/conversations/${id}/icebreakers`).then(r=>{if(CH.id===id){CH.ice=r.suggestions||[];paintChat()}}).catch(()=>{});CH={ice:[],id,person,msgs:[],last:0,total:0,canSend:true,shown:true,timer:null};S.chat=id;S.error='';render();pollChat();CH.timer=setInterval(pollChat,3000)}
 function closeChat(){clearInterval(CH.timer);CH.id=null;S.chat=null}
 
 /* ---------- actions ---------- */
@@ -307,7 +344,7 @@ $app.addEventListener('click',async e=>{
   else if(a==='opt'){const q=S.questions[S.qi],i=+el.dataset.i;let cur=(S.answers[q.id]||[]).slice();
     if(q.maxChoices>0){const k=cur.indexOf(i);if(k>=0)cur.splice(k,1);else if(cur.length<q.maxChoices)cur.push(i)}else cur=[i];S.answers[q.id]=cur;save()}
   else if(a==='prev'){S.qi--;save()}
-  else if(a==='next'||a==='fun-pick'||a==='hint'||a==='fun-next'){const r=funActions(a,el);if(r==='finish'){await submitAll();return}else if(r==='handled')save()}
+  else if(a==='next'||a==='fun-pick'||a==='hint'||a==='fun-next'){const r=funActions(a,el);if(r==='finish'){await submitAll();return}else if(r==='handled'){save();if(S.screen==='fun'||S.screen==='theme')syncAnswers()}}
   else if(a==='tab'){closeChat();S.tab=el.dataset.t;S.detail=null;S.det=null;S.error='';try{await loadAll();const p=await api('GET','/profile');S.user=p.user;S.traits=p.traits}catch(x){}}
   else if(a==='refresh'){return go(loadAll)}
   else if(a==='open'){const m=S.matches[+el.dataset.i];if(m.locked){S.sheet=true}else{S.detail=+el.dataset.i;S.det=null;render();return go(async()=>{S.det=await api('GET','/matches/'+m.user.id)})}}
@@ -315,11 +352,14 @@ $app.addEventListener('click',async e=>{
   else if(a==='back'){if(S.chat!=null){closeChat();try{await loadAll()}catch(x){}}else{S.detail=null;S.det=null}}
   else if(a==='req'){S.busy=true;return go(async()=>{try{await api('POST','/connections/'+id)}catch(x){if(x.code==='premium_required'){S.sheet=true}else throw x}const m=S.matches[S.detail];S.det=await api('GET','/matches/'+m.user.id);await loadAll()})}
   else if(a==='accept'||a==='reject'){return go(async()=>{await api('POST',`/connections/${id}/${a}`);await loadAll();if(S.detail!=null){const m=S.matches[S.detail];if(m&&!m.locked)S.det=await api('GET','/matches/'+m.user.id)}})}
-  else if(a==='chat'){const uid=+el.dataset.uid;const c=S.convs.find(x=>x.id===id);const person=c?c.user:(S.det&&S.det.user)||{name:''};return openChat(id,person)}
+  else if(a==='chat'){const uid=+el.dataset.uid;const c=S.convs.find(x=>x.id===id);const person=c?c.user:(S.det&&S.det.user)||{name:el.dataset.name||''};return openChat(id,person)}
   else if(a==='report'){S.report=id}
   else if(a==='send-report'){const uid=S.report,cat=el.dataset.c;S.report=null;return go(async()=>{await api('POST','/reports',{userId:uid,category:cat});alert('Merci, ton signalement a été envoyé. Il est confidentiel.')})}
   else if(a==='send-appeal'){return go(async()=>{await api('POST','/appeal',{text:$('f-appeal').value.trim()});S.info='Ta demande a été envoyée. Nous l\'examinerons rapidement.'})}
   else if(a==='block'){if(!confirm('Bloquer ce profil ?'))return;return go(async()=>{await api('POST','/blocks',{userId:id});S.detail=null;S.det=null;await loadAll()})}
+  else if(a==='daily-pick'){const i=+el.dataset.i;return go(async()=>{S.daily=await api('POST','/daily',{choice:i})})}
+  else if(a==='ice'){const inp=$('msg');if(inp){inp.value=CH.ice[+el.dataset.i]||'';inp.focus()}return}
+  else if(a==='install'){if(DEFERRED){DEFERRED.prompt();try{await DEFERRED.userChoice}catch(x){}DEFERRED=null}}
   else if(a==='export'){return go(async()=>{const d=await api('GET','/account/export');const u=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));const l=document.createElement('a');l.href=u;l.download='mes-donnees-nexa.json';l.click();setTimeout(()=>URL.revokeObjectURL(u),5000)})}
   else if(a==='premium'){S.sheet=true}
   else if(a==='go-premium'){return go(async()=>{await api('POST','/subscription');S.sheet=false;const p=await api('GET','/profile');S.user=p.user;await loadAll();if(S.chat!=null){CH.canSend=true;await pollChat()}})}
