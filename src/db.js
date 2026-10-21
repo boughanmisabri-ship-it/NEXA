@@ -179,6 +179,13 @@ export const MIGRATIONS = [
       );
     `),
   },
+  {
+    v: 7, name: 'clé de session par compte (un ancien jeton ne peut plus ouvrir le compte d\'une autre personne)',
+    up: (db) => {
+      addColumn(db, 'users', 'token_key', 'TEXT');
+      db.exec("UPDATE users SET token_key = lower(hex(randomblob(16))) WHERE token_key IS NULL");
+    },
+  },
 ];
 
 export function openDb(file, { upTo = Infinity } = {}) {

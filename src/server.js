@@ -169,8 +169,8 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
     const wants = me.gender === 'Homme' ? 'Un homme' : 'Une femme';
     if (one('SELECT COUNT(*) n FROM users WHERE demo_for = ?', me.id).n > 0) return 0;
     const sets = demoAnswerSets(mine, me.id);
-    const ins = db.prepare(`INSERT INTO users (phone, pass_hash, name, age, city, gender, looking_for, bio, completed, is_demo, demo_for, verified)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, 1)`);
+    const ins = db.prepare(`INSERT INTO users (phone, pass_hash, name, age, city, gender, looking_for, bio, completed, is_demo, demo_for, verified, token_key)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, 1, lower(hex(randomblob(16))))`);
     const insA = db.prepare('INSERT INTO answers (user_id, question_id, selected) VALUES (?, ?, ?)');
     let n = 0;
     sets.forEach((ans, i) => {
@@ -213,11 +213,12 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
     if (!['Femme', 'Homme'].includes(gender)) throw bad('Genre invalide');
     if (!['Un homme', 'Une femme'].includes(lookingFor)) throw bad('Recherche invalide');
     if (one('SELECT 1 x FROM users WHERE phone = ?', phone)) throw new HttpError(409, 'Ce numéro est déjà inscrit');
-    const r = run('INSERT INTO users (phone, pass_hash, name, age, city, gender, looking_for) VALUES (?,?,?,?,?,?,?)',
-      phone, hashPw(password), name.trim(), age, city.trim(), gender, lookingFor);
+    const tokenKey = crypto.randomBytes(16).toString('hex');
+    const r = run('INSERT INTO users (phone, pass_hash, name, age, city, gender, looking_for, token_key) VALUES (?,?,?,?,?,?,?,?)',
+      phone, hashPw(password), name.trim(), age, city.trim(), gender, lookingFor, tokenKey);
     const id = Number(r.lastInsertRowid);
     limiter.add('reg:' + ip);
-    return [201, { token: sign({ uid: id, exp: Date.now() + 30 * 864e5 }), user: me_(one('SELECT * FROM users WHERE id = ?', id)) }];
+    return [201, { token: sign({ uid: id, k: tokenKey, exp: Date.now() + 30 * 864e5 }), user: me_(one('SELECT * FROM users WHERE id = ?', id)) }];
   }, false);
 
   route('POST', '/auth/login', ({ body, ip }) => {
@@ -231,7 +232,8 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
       throw new HttpError(401, 'Identifiants incorrects');
     }
     limiter.reset(lockKey);
-    return { token: sign({ uid: u.id, exp: Date.now() + 30 * 864e5 }), user: me_(u) };
+    if (!u.token_key) { u.token_key = crypto.randomBytes(16).toString('hex'); run('UPDATE users SET token_key = ? WHERE id = ?', u.token_key, u.id); }
+    return { token: sign({ uid: u.id, k: u.token_key, exp: Date.now() + 30 * 864e5 }), user: me_(u) };
   }, false);
 
   // Vérification du numéro par code SMS à 6 chiffres (valable 10 min, 5 essais, 5 envois par heure).
@@ -749,6 +751,8 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
     const send = (status, data) => {
       res.writeHead(status, {
         'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Vary': 'Authorization',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -786,6 +790,8 @@ export function buildApp({ dbFile = process.env.NEXA_DB || 'data/nexa.db', demo 
         const t = (req.headers.authorization || '').replace(/^Bearer /, '');
         const p = verify(t);
         user = p && one('SELECT * FROM users WHERE id = ?', p.uid);
+        // Le numéro de compte seul ne suffit pas : la clé doit correspondre à CE compte (sinon, après une base effacée, un ancien jeton ouvrirait le compte d'un autre).
+        if (user && !(typeof p.k === 'string' && user.token_key && p.k.length === user.token_key.length && crypto.timingSafeEqual(Buffer.from(p.k), Buffer.from(user.token_key)))) user = null;
         if (!user) throw new HttpError(401, 'Non authentifié');
         markActive(user.id);
         if (user.suspended && !r.open) throw new HttpError(403, 'Ton compte est suspendu.', { code: 'suspended' });
